@@ -12,8 +12,8 @@ export default defineConfig({
         name: 'Portal de Serviços',
         short_name: 'Serviços',
         description: 'Solicite e acompanhe serviços pelo portal.',
-        theme_color: '#4f46e5',
-        background_color: '#f7f8fc',
+        theme_color: '#24282c',
+        background_color: '#eceee9',
         display: 'standalone',
         start_url: '/',
         icons: [
