@@ -5,3 +5,5 @@ dist/
 !.env.example
 *.local
 supabase/.temp/
+
+.claude/skills/
