@@ -1,20 +1,24 @@
 import { useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ChevronRight, MapPin, Search, X } from 'lucide-react'
+import logo from '../assets/zumzum-icone.svg'
+import { Avatar } from '../components/Avatar'
+import { BottomMenu } from '../components/BottomMenu'
 import { BlurredPrice, LoginBar } from '../components/LoginBar'
 import { Rating } from '../components/Rating'
-import { professionalsFor, type Professional } from '../features/profissionais/dados-exemplo'
+import { priceFor, professionalsFor, type Professional } from '../features/profissionais/dados-exemplo'
 import { allTasks, professions, type Task } from '../features/servicos/catalogo'
 import { routes } from '../hooks/useHashRoute'
-import { firstName, formatPrice, initials, normalize } from '../lib/format'
+import { firstName, formatPrice, greeting, normalize } from '../lib/format'
 import { contactMessage, openWhatsapp } from '../lib/whatsapp'
 
 type InicioProps = {
   isLoggedIn: boolean
+  userName: string
   onLogin: () => void
   onLogout: () => void
 }
 
-export function Inicio({ isLoggedIn, onLogin, onLogout }: InicioProps) {
+export function Inicio({ isLoggedIn, userName, onLogin, onLogout }: InicioProps) {
   const [query, setQuery] = useState('')
   const [filters, setFilters] = useState<string[]>([])
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
@@ -53,7 +57,7 @@ export function Inicio({ isLoggedIn, onLogin, onLogout }: InicioProps) {
   const taskPros = selectedTask
     ? professionalsFor(selectedTask.profession.id, selectedTask.title)
     : []
-  const selectedPrice = selectedTask && selectedPro ? selectedPro.prices[selectedTask.title] : null
+  const selectedPrice = selectedTask && selectedPro ? priceFor(selectedPro, selectedTask.title) : null
   const proFirstName = selectedPro ? firstName(selectedPro.name) : ''
   // Sem login, só o primeiro nome
   const proName = selectedPro && isLoggedIn ? selectedPro.name : proFirstName
@@ -66,11 +70,13 @@ export function Inicio({ isLoggedIn, onLogin, onLogout }: InicioProps) {
     <div className="app">
       <header className="app-header">
         <div className="header-top">
-          <span className="wordmark">Portal de Serviços</span>
+          <div className="brand">
+            <img className="brand-icon" src={logo} alt="zumzum" width={36} height={36} />
+            <span className="wordmark">
+              {isLoggedIn ? `${greeting()}, ${firstName(userName)}` : greeting()}
+            </span>
+          </div>
           <div className="header-links">
-            <a className="clear-filters" href={routes.area}>
-              Sou prestador
-            </a>
             <button
               type="button"
               className="clear-filters"
@@ -118,10 +124,12 @@ export function Inicio({ isLoggedIn, onLogin, onLogout }: InicioProps) {
       </header>
 
       <main className="app-main">
+        <section className="banner" aria-label="Destaques" />
+
         <section aria-label="Profissões">
           <ul className="profession-grid">
             {professions.map((profession) => {
-              const { id, name, icon: Icon } = profession
+              const { id, name, image } = profession
               const isActive = filters.includes(id)
               return (
                 <li key={id}>
@@ -131,8 +139,10 @@ export function Inicio({ isLoggedIn, onLogin, onLogout }: InicioProps) {
                     aria-pressed={isActive}
                     onClick={() => toggleFilter(id)}
                   >
-                    <Icon size={24} strokeWidth={1.75} aria-hidden="true" />
-                    <span>{name}</span>
+                    <span className="profession-tile">
+                      <img src={image} alt="" width={56} height={56} />
+                    </span>
+                    <span className="profession-name">{name}</span>
                   </button>
                 </li>
               )
@@ -230,14 +240,12 @@ export function Inicio({ isLoggedIn, onLogin, onLogout }: InicioProps) {
 
                 <ul className="pro-list">
                   {taskPros.map((pro) => {
-                    const price = pro.prices[selectedTask.title]
+                    const price = priceFor(pro, selectedTask.title)
                     const name = isLoggedIn ? pro.name : firstName(pro.name)
                     return (
                       <li key={pro.id}>
                         <button type="button" className="pro" onClick={() => choosePro(pro)}>
-                          <span className="avatar" aria-hidden="true">
-                            {initials(name)}
-                          </span>
+                          <Avatar name={name} photo={pro.photo} />
                           <span className="pro-text">
                             <span className="pro-name">{name}</span>
                             <Rating rating={pro.rating} reviews={pro.reviews} />
@@ -289,9 +297,7 @@ export function Inicio({ isLoggedIn, onLogin, onLogout }: InicioProps) {
             </div>
 
             <div className="profile">
-              <span className="avatar avatar-large" aria-hidden="true">
-                {initials(proName)}
-              </span>
+              <Avatar name={proName} photo={selectedPro.photo} large />
               <div>
                 <h2 id="sheet-title">{proName}</h2>
                 <p className="sheet-profession">{selectedTask.profession.name}</p>
@@ -362,6 +368,14 @@ export function Inicio({ isLoggedIn, onLogin, onLogout }: InicioProps) {
           </div>
         )}
       </dialog>
+
+      <BottomMenu
+        current="inicio"
+        onInicio={() => {
+          setQuery('')
+          setFilters([])
+        }}
+      />
     </div>
   )
 }

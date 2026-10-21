@@ -1,13 +1,27 @@
+import type { PlanId } from '../conta/plano'
+
 // Dados de exemplo para o protótipo. Serão substituídos pela tabela de
 // profissionais no Supabase.
+
+// Serviço oferecido e o preço médio informado pelo profissional (em reais).
+// Preço null = o profissional não informou; o valor sai só na conversa.
+export type OfferedService = {
+  professionId: string
+  name: string
+  price: number | null
+}
 
 export type Professional = {
   id: string
   name: string
-  professionId: string
-  // Serviços oferecidos e o preço médio informado pelo profissional (em reais).
-  // Preço ausente = o profissional não informou; o valor sai só na conversa.
-  prices: Record<string, number | null>
+  // Uma pessoa pode oferecer serviços de várias profissões
+  services: OfferedService[]
+  photo?: string
+  // Rascunho não aparece nas buscas; publicar ativa o plano de prestador
+  status: 'rascunho' | 'publicado'
+  // Fim do período grátis (AAAA-MM-DD), definido ao publicar
+  trialEndsAt?: string
+  plan?: PlanId
   rating: number
   reviews: number
   neighborhood: string
@@ -17,7 +31,12 @@ export type Professional = {
   whatsapp?: string
 }
 
-export const professionals: Professional[] = [
+type SampleRow = Omit<Professional, 'services' | 'status'> & {
+  professionId: string
+  prices: Record<string, number | null>
+}
+
+const sampleRows: SampleRow[] = [
   { id: 'p1', name: 'Carlos Henrique', professionId: 'eletricista', prices: { 'Instalar chuveiro': 150, 'Trocar tomada ou interruptor': 60, 'Revisar quadro de energia': 250 }, rating: 4.9, reviews: 132, neighborhood: 'Setor Bueno', about: 'Eletricista há 15 anos, atendo casas e apartamentos na região sul. Levo o material básico e deixo tudo limpo no final.' },
   { id: 'p2', name: 'Marcos Vinícius', professionId: 'eletricista', prices: { 'Instalar chuveiro': 120, 'Trocar tomada ou interruptor': 50 }, rating: 4.7, reviews: 58, neighborhood: 'Jardim América' },
   { id: 'p3', name: 'Rafael Souza', professionId: 'eletricista', prices: { 'Instalar chuveiro': null, 'Trocar tomada ou interruptor': 70, 'Revisar quadro de energia': null }, rating: 5, reviews: 3, neighborhood: 'Setor Oeste' },
@@ -44,6 +63,20 @@ export const professionals: Professional[] = [
   { id: 'p24', name: 'Mateus Freitas', professionId: 'chaveiro', prices: { 'Fazer cópia de chave': 12, 'Trocar fechadura': 140 }, rating: 4.4, reviews: 76, neighborhood: 'Setor Sul' },
 ]
 
+export const professionals: Professional[] = sampleRows.map(({ professionId, prices, ...rest }) => ({
+  ...rest,
+  status: 'publicado',
+  services: Object.entries(prices).map(([name, price]) => ({ professionId, name, price })),
+}))
+
+export function priceFor(pro: Professional, task: string) {
+  return pro.services.find((service) => service.name === task)?.price ?? null
+}
+
+export function professionIdsOf(pro: Professional) {
+  return [...new Set(pro.services.map((service) => service.professionId))]
+}
+
 // Média bayesiana: poucas avaliações puxam a nota para a média geral,
 // para que 5,0 com 3 avaliações não passe na frente de 4,9 com 132.
 const PRIOR_REVIEWS = 10
@@ -55,7 +88,10 @@ export function reputation({ rating, reviews }: Professional) {
 
 export function professionalsFor(professionId: string, task: string) {
   return professionals
-    .filter((p) => p.professionId === professionId && task in p.prices)
+    .filter((p) =>
+      p.status === 'publicado' &&
+      p.services.some((service) => service.professionId === professionId && service.name === task),
+    )
     .sort((a, b) => reputation(b) - reputation(a))
 }
 
@@ -68,6 +104,22 @@ export function getProfessional(id: string) {
 export function updateProfessional(id: string, changes: Partial<Omit<Professional, 'id'>>) {
   const professional = getProfessional(id)
   if (professional) Object.assign(professional, changes)
+}
+
+// Prestador novo: começa sem serviços e sem avaliações
+export function addProfessional(
+  data: Pick<Professional, 'name' | 'neighborhood' | 'whatsapp' | 'photo'>,
+) {
+  const professional: Professional = {
+    ...data,
+    id: `p${Date.now()}`,
+    services: [],
+    status: 'rascunho',
+    rating: 0,
+    reviews: 0,
+  }
+  professionals.push(professional)
+  return professional
 }
 
 export type Review = {

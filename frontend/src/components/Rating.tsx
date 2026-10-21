@@ -7,6 +7,10 @@ type RatingProps = {
 }
 
 export function Rating({ rating, reviews }: RatingProps) {
+  if (reviews === 0) {
+    return <span className="pro-meta">Novo no portal, sem avaliações</span>
+  }
+
   return (
     <span className="pro-meta">
       <Star className="star" size={14} aria-hidden="true" />

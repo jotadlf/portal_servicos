@@ -25,6 +25,14 @@ export function formatDate(isoDate: string) {
   })
 }
 
+// Bom dia até 12h, boa tarde até 18h, boa noite no resto
+export function greeting(date = new Date()) {
+  const hour = date.getHours()
+  if (hour >= 5 && hour < 12) return 'Bom dia'
+  if (hour >= 12 && hour < 18) return 'Boa tarde'
+  return 'Boa noite'
+}
+
 export function firstName(name: string) {
   return name.split(' ')[0]
 }

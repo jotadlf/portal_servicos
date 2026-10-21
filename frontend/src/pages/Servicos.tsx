@@ -1,69 +1,103 @@
 import { useState, type FormEvent } from 'react'
-import { Pencil, Plus, Star, Trash2 } from 'lucide-react'
+import { Check, Pencil, Plus, Star, Trash2, X } from 'lucide-react'
+import { BottomMenu } from '../components/BottomMenu'
 import { LoginBar } from '../components/LoginBar'
-import { PageBar } from '../components/PageBar'
+import { PlanOffer } from '../components/PlanOffer'
 import { Rating } from '../components/Rating'
+import { findPlan, formatMoney } from '../features/conta/plano'
+import { becomeProvider, getAccountProfessional, type Account } from '../features/conta/usuario'
 import {
   contactsFor,
-  getProfessional,
   reviewsFor,
   updateProfessional,
+  type OfferedService,
   type Professional,
 } from '../features/profissionais/dados-exemplo'
 import { findProfession, professions } from '../features/servicos/catalogo'
 import { routes } from '../hooks/useHashRoute'
 import { formatDate, formatPrice, formatRating, normalize } from '../lib/format'
-import { formatPhone, isValidPhone } from '../lib/whatsapp'
-
-// TODO: usar o prestador do usuário logado (Supabase Auth). No protótipo é sempre o Carlos.
-const LOGGED_PROFESSIONAL_ID = 'p1'
 
 const tabs = [
-  { id: 'perfil', label: 'Perfil' },
-  { id: 'servicos', label: 'Serviços' },
+  { id: 'servicos', label: 'Meus serviços' },
   { id: 'contatos', label: 'Contatos' },
   { id: 'avaliacoes', label: 'Avaliações' },
 ] as const
 
 type TabId = (typeof tabs)[number]['id']
 
-type AreaPrestadorProps = {
-  isLoggedIn: boolean
+type ServicosProps = {
+  account?: Account
   onLogin: () => void
 }
 
-export function AreaPrestador({ isLoggedIn, onLogin }: AreaPrestadorProps) {
-  const pro = getProfessional(LOGGED_PROFESSIONAL_ID)
+export function Servicos({ account, onLogin }: ServicosProps) {
+  // Muda quando a pessoa decide oferecer serviços, para a página trocar de conteúdo
+  const [professionalId, setProfessionalId] = useState(account?.professionalId)
+  const pro = account && professionalId ? getAccountProfessional(account) : undefined
 
   return (
     <div className="app">
-      <PageBar title="Área do prestador" />
       <main className="page">
-        {isLoggedIn && pro ? (
+        {pro ? (
           <Painel pro={pro} />
         ) : (
           <div className="page-section">
             <h1 className="page-title">Ofereça seus serviços</h1>
             <p className="section-note">
-              Monte seu perfil, informe o preço médio dos seus serviços e receba contatos de
+              Cadastre os serviços que você faz, informe o preço médio e receba contatos de
               clientes da sua região.
             </p>
-            <LoginBar message="Entre para acessar sua área de prestador." onLogin={onLogin} />
+            <PlanOffer />
+            {account ? (
+              <button
+                type="button"
+                className="primary"
+                onClick={() => {
+                  becomeProvider(account.id)
+                  setProfessionalId(account.professionalId)
+                }}
+              >
+                Quero oferecer serviços
+              </button>
+            ) : (
+              <LoginBar message="Entre para cadastrar seus serviços." onLogin={onLogin} />
+            )}
           </div>
         )}
       </main>
+
+      <BottomMenu current="servicos" />
     </div>
   )
 }
 
 function Painel({ pro }: { pro: Professional }) {
-  const [tab, setTab] = useState<TabId>('perfil')
+  const [tab, setTab] = useState<TabId>('servicos')
+  // Faz o cartão de publicação reagir quando a lista de serviços muda
+  const [, setVersion] = useState(0)
 
   const newContacts = contactsFor(pro.id).filter((contact) => !contact.answered).length
 
   return (
     <>
-      <nav className="tabs" aria-label="Seções da área do prestador">
+      <h1 className="page-title">Serviços</h1>
+
+      {pro.status === 'rascunho' ? (
+        <PublishCard pro={pro} />
+      ) : (
+        <p className="notice">
+          Perfil publicado.{' '}
+          <PublishedPlan pro={pro} />
+        </p>
+      )}
+
+      {pro.status === 'publicado' && !pro.whatsapp && (
+        <p className="notice">
+          Cadastre seu WhatsApp no <a href={routes.conta}>Perfil</a> para receber contatos.
+        </p>
+      )}
+
+      <nav className="tabs" aria-label="Seções de serviços">
         {tabs.map(({ id, label }) => (
           <button
             key={id}
@@ -82,12 +116,59 @@ function Painel({ pro }: { pro: Professional }) {
         ))}
       </nav>
 
-      {tab === 'perfil' && <PerfilForm pro={pro} />}
-      {tab === 'servicos' && <ServicosForm pro={pro} />}
+      {tab === 'servicos' && (
+        <>
+          <ServicosForm pro={pro} onChange={() => setVersion((v) => v + 1)} />
+          <SobreForm pro={pro} />
+        </>
+      )}
       {tab === 'contatos' && <Contatos pro={pro} />}
       {tab === 'avaliacoes' && <Avaliacoes pro={pro} />}
     </>
   )
+}
+
+// O que falta para publicar: sem WhatsApp ou sem serviços o perfil não teria utilidade
+function PublishCard({ pro }: { pro: Professional }) {
+  const steps = [
+    { done: Boolean(pro.whatsapp), label: 'WhatsApp cadastrado no Perfil', href: routes.conta },
+    { done: pro.services.length > 0, label: 'Pelo menos um serviço cadastrado' },
+  ]
+  const ready = steps.every(({ done }) => done)
+
+  return (
+    <section className="publish-card" aria-labelledby="publicar-titulo">
+      <h2 id="publicar-titulo">Seu perfil ainda não aparece nas buscas</h2>
+      <p>Publique para receber contatos de clientes.</p>
+      <PlanOffer compact />
+      <ul className="publish-steps">
+        {steps.map(({ done, label, href }) => (
+          <li key={label} className={done ? 'is-done' : undefined}>
+            {done ? <Check size={16} aria-hidden="true" /> : <X size={16} aria-hidden="true" />}
+            {href && !done ? <a href={href}>{label}</a> : label}
+            <span className="visually-hidden">{done ? ' (feito)' : ' (pendente)'}</span>
+          </li>
+        ))}
+      </ul>
+      {ready ? (
+        <a className="primary publish-button" href={routes.publicar}>
+          Publicar
+        </a>
+      ) : (
+        <button type="button" className="primary publish-button" disabled>
+          Publicar
+        </button>
+      )}
+    </section>
+  )
+}
+
+function PublishedPlan({ pro }: { pro: Professional }) {
+  const plan = findPlan(pro.plan ?? 'mensal')
+  const price = `${formatMoney(plan.price)} ${plan.period}`
+  return pro.trialEndsAt
+    ? `Plano ${plan.label.toLowerCase()}: grátis até ${formatDate(pro.trialEndsAt)}, depois ${price}.`
+    : `Plano ${plan.label.toLowerCase()}: ${price}.`
 }
 
 function SavedNote({ show }: { show: boolean }) {
@@ -102,85 +183,20 @@ function SavedNote({ show }: { show: boolean }) {
   )
 }
 
-function PerfilForm({ pro }: { pro: Professional }) {
-  const [name, setName] = useState(pro.name)
-  const [professionId, setProfessionId] = useState(pro.professionId)
-  const [neighborhood, setNeighborhood] = useState(pro.neighborhood)
+function SobreForm({ pro }: { pro: Professional }) {
   const [about, setAbout] = useState(pro.about ?? '')
-  const [whatsapp, setWhatsapp] = useState(formatPhone(pro.whatsapp ?? ''))
-  const [whatsappError, setWhatsappError] = useState('')
   const [saved, setSaved] = useState(false)
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const digits = whatsapp.replace(/\D/g, '')
-
-    if (!isValidPhone(digits)) {
-      setWhatsappError('Informe o WhatsApp com DDD, por exemplo (62) 99999-9999.')
-      return
-    }
-
-    updateProfessional(pro.id, {
-      name: name.trim(),
-      professionId,
-      neighborhood: neighborhood.trim(),
-      about: about.trim(),
-      whatsapp: digits,
-    })
+    updateProfessional(pro.id, { about: about.trim() })
     setSaved(true)
   }
 
   return (
     <form className="page-section form" onSubmit={handleSubmit} onChange={() => setSaved(false)}>
       <label className="field">
-        <span>Nome</span>
-        <input required maxLength={60} value={name} onChange={(e) => setName(e.target.value)} />
-      </label>
-
-      <label className="field">
-        <span>Profissão</span>
-        <select value={professionId} onChange={(e) => setProfessionId(e.target.value)}>
-          {professions.map(({ id, name: label }) => (
-            <option key={id} value={id}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label className="field">
-        <span>Bairro onde atende</span>
-        <input
-          required
-          maxLength={50}
-          value={neighborhood}
-          onChange={(e) => setNeighborhood(e.target.value)}
-        />
-      </label>
-
-      <label className="field">
-        <span>WhatsApp</span>
-        <input
-          type="tel"
-          inputMode="tel"
-          autoComplete="tel-national"
-          placeholder="(62) 99999-9999"
-          aria-invalid={whatsappError ? true : undefined}
-          aria-describedby="whatsapp-ajuda"
-          value={whatsapp}
-          onChange={(e) => {
-            setWhatsapp(formatPhone(e.target.value))
-            setWhatsappError('')
-          }}
-        />
-        <small id="whatsapp-ajuda" className={whatsappError ? 'form-error' : 'field-help'}>
-          {whatsappError ||
-            'Os clientes que tocarem em contato vão abrir uma conversa com este número.'}
-        </small>
-      </label>
-
-      <label className="field">
-        <span>Sobre você</span>
+        <span>Sobre seu trabalho</span>
         <textarea
           rows={4}
           maxLength={300}
@@ -195,101 +211,133 @@ function PerfilForm({ pro }: { pro: Professional }) {
         <a className="clear-filters" href={routes.perfil(pro.id)}>
           Ver como os clientes veem
         </a>
-        <button type="submit" className="primary">
-          Salvar perfil
+        <button type="submit" className="login-button">
+          Salvar
         </button>
       </div>
     </form>
   )
 }
 
-type Service = { id: string; name: string; price: number | null }
+type Service = OfferedService & { id: string }
 
-function ServicosForm({ pro }: { pro: Professional }) {
+function ServicosForm({ pro, onChange }: { pro: Professional; onChange: () => void }) {
   const [services, setServices] = useState<Service[]>(() =>
-    Object.entries(pro.prices).map(([name, price], index) => ({ id: `s${index}`, name, price })),
+    pro.services.map((service, index) => ({ ...service, id: `s${index}` })),
   )
   // id do serviço em edição, 'novo' ao adicionar, ou null
   const [editing, setEditing] = useState<string | null>(null)
   const [removed, setRemoved] = useState<{ service: Service; index: number } | null>(null)
 
-  const suggestions = findProfession(pro.professionId)?.tasks ?? []
+  // Profissão já marcada num serviço novo: a do último serviço cadastrado
+  const lastProfessionId = services.at(-1)?.professionId ?? professions[0].id
+
+  // Agrupa por profissão, na ordem do catálogo
+  const groups = professions
+    .map((profession) => ({
+      profession,
+      items: services.filter((service) => service.professionId === profession.id),
+    }))
+    .filter(({ items }) => items.length > 0)
 
   // TODO: gravar as alterações de serviços no Supabase.
+  function commit(next: Service[]) {
+    setServices(next)
+    updateProfessional(pro.id, {
+      services: next.map(({ professionId, name, price }) => ({ professionId, name, price })),
+    })
+    onChange()
+  }
+
   function save(service: Service) {
-    setServices((current) =>
+    commit(
       service.id
-        ? current.map((item) => (item.id === service.id ? service : item))
-        : [...current, { ...service, id: `s${Date.now()}` }],
+        ? services.map((item) => (item.id === service.id ? service : item))
+        : [...services, { ...service, id: `s${Date.now()}` }],
     )
     setEditing(null)
   }
 
   function remove(service: Service) {
     setRemoved({ service, index: services.indexOf(service) })
-    setServices((current) => current.filter(({ id }) => id !== service.id))
+    commit(services.filter(({ id }) => id !== service.id))
   }
 
   function undoRemove() {
     if (!removed) return
-    setServices((current) => {
-      const next = [...current]
-      next.splice(removed.index, 0, removed.service)
-      return next
-    })
+    const next = [...services]
+    next.splice(removed.index, 0, removed.service)
+    commit(next)
     setRemoved(null)
   }
 
-  function isDuplicate(name: string, id: string) {
-    return services.some((item) => item.id !== id && normalize(item.name) === normalize(name))
+  // Mesmo nome só conta como repetido dentro da mesma profissão
+  function isDuplicate(name: string, professionId: string, id: string) {
+    return services.some(
+      (item) =>
+        item.id !== id &&
+        item.professionId === professionId &&
+        normalize(item.name) === normalize(name),
+    )
   }
 
   return (
-    <section className="page-section">
-      {services.length > 0 && (
-        <ul className="line-list">
-          {services.map((service) =>
-            editing === service.id ? (
-              <li key={service.id}>
-                <ServiceEditor
-                  service={service}
-                  suggestions={suggestions}
-                  isDuplicate={isDuplicate}
-                  onSave={save}
-                  onCancel={() => setEditing(null)}
-                />
-              </li>
-            ) : (
-              <li key={service.id} className="line">
-                <span className="service-name">
-                  {service.name}
-                  <small>
-                    {service.price == null ? 'a combinar' : `média ${formatPrice(service.price)}`}
-                  </small>
-                </span>
-                <span className="line-actions">
-                  <button
-                    type="button"
-                    className="icon-button"
-                    aria-label={`Editar ${service.name}`}
-                    onClick={() => setEditing(service.id)}
-                  >
-                    <Pencil size={16} aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-button"
-                    aria-label={`Apagar ${service.name}`}
-                    onClick={() => remove(service)}
-                  >
-                    <Trash2 size={16} aria-hidden="true" />
-                  </button>
-                </span>
-              </li>
-            ),
-          )}
-        </ul>
+    <section className="page-section" aria-label="Meus serviços">
+      {services.length === 0 && editing !== 'novo' && (
+        <p className="section-note">
+          Você ainda não oferece nenhum serviço. Adicione o primeiro para aparecer nas buscas.
+        </p>
       )}
+
+      {groups.map(({ profession, items }) => (
+        <div key={profession.id} className="service-group">
+          <h2 className="service-group-title">
+            <img src={profession.image} alt="" width={20} height={20} />
+            {profession.name}
+          </h2>
+          <ul className="line-list">
+            {items.map((service) =>
+              editing === service.id ? (
+                <li key={service.id}>
+                  <ServiceEditor
+                    service={service}
+                    isDuplicate={isDuplicate}
+                    onSave={save}
+                    onCancel={() => setEditing(null)}
+                  />
+                </li>
+              ) : (
+                <li key={service.id} className="line">
+                  <span className="service-name">
+                    {service.name}
+                    <small>
+                      {service.price == null ? 'a combinar' : `média ${formatPrice(service.price)}`}
+                    </small>
+                  </span>
+                  <span className="line-actions">
+                    <button
+                      type="button"
+                      className="icon-button"
+                      aria-label={`Editar ${service.name}`}
+                      onClick={() => setEditing(service.id)}
+                    >
+                      <Pencil size={16} aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-button"
+                      aria-label={`Apagar ${service.name}`}
+                      onClick={() => remove(service)}
+                    >
+                      <Trash2 size={16} aria-hidden="true" />
+                    </button>
+                  </span>
+                </li>
+              ),
+            )}
+          </ul>
+        </div>
+      ))}
 
       <div aria-live="polite">
         {removed && (
@@ -304,8 +352,7 @@ function ServicosForm({ pro }: { pro: Professional }) {
 
       {editing === 'novo' ? (
         <ServiceEditor
-          service={{ id: '', name: '', price: null }}
-          suggestions={suggestions}
+          service={{ id: '', professionId: lastProfessionId, name: '', price: null }}
           isDuplicate={isDuplicate}
           onSave={save}
           onCancel={() => setEditing(null)}
@@ -329,16 +376,18 @@ function ServicosForm({ pro }: { pro: Professional }) {
 
 type ServiceEditorProps = {
   service: Service
-  suggestions: string[]
-  isDuplicate: (name: string, id: string) => boolean
+  isDuplicate: (name: string, professionId: string, id: string) => boolean
   onSave: (service: Service) => void
   onCancel: () => void
 }
 
-function ServiceEditor({ service, suggestions, isDuplicate, onSave, onCancel }: ServiceEditorProps) {
+function ServiceEditor({ service, isDuplicate, onSave, onCancel }: ServiceEditorProps) {
+  const [professionId, setProfessionId] = useState(service.professionId)
   const [name, setName] = useState(service.name)
   const [price, setPrice] = useState(service.price == null ? '' : String(service.price))
   const [error, setError] = useState('')
+
+  const suggestions = findProfession(professionId)?.tasks ?? []
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -348,16 +397,33 @@ function ServiceEditor({ service, suggestions, isDuplicate, onSave, onCancel }: 
       setError('Informe o nome do serviço.')
       return
     }
-    if (isDuplicate(trimmed, service.id)) {
-      setError('Você já tem um serviço com esse nome.')
+    if (isDuplicate(trimmed, professionId, service.id)) {
+      setError('Você já tem um serviço com esse nome nesta profissão.')
       return
     }
 
-    onSave({ id: service.id, name: trimmed, price: price ? Number(price) : null })
+    onSave({ id: service.id, professionId, name: trimmed, price: price ? Number(price) : null })
   }
 
   return (
     <form className="service-editor" onSubmit={handleSubmit} noValidate>
+      <label className="field">
+        <span>Profissão</span>
+        <select
+          value={professionId}
+          onChange={(e) => {
+            setProfessionId(e.target.value)
+            setError('')
+          }}
+        >
+          {professions.map(({ id, name: label }) => (
+            <option key={id} value={id}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+
       <label className="field">
         <span>Serviço</span>
         <input

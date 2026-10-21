@@ -3,21 +3,29 @@ import { MapPin, Star } from 'lucide-react'
 import { BlurredPrice, LoginBar } from '../components/LoginBar'
 import { PageBar } from '../components/PageBar'
 import { Rating } from '../components/Rating'
-import { getProfessional, reviewsFor } from '../features/profissionais/dados-exemplo'
+import { Avatar } from '../components/Avatar'
+import {
+  getProfessional,
+  professionIdsOf,
+  reviewsFor,
+} from '../features/profissionais/dados-exemplo'
 import { findProfession } from '../features/servicos/catalogo'
 import { routes } from '../hooks/useHashRoute'
-import { firstName, formatDate, formatPrice, initials } from '../lib/format'
+import { firstName, formatDate, formatPrice } from '../lib/format'
 import { contactMessage, openWhatsapp } from '../lib/whatsapp'
 
 type PerfilPrestadorProps = {
   id: string
   isLoggedIn: boolean
+  // Rascunho só aparece para o próprio prestador
+  isOwner: boolean
   onLogin: () => void
 }
 
-export function PerfilPrestador({ id, isLoggedIn, onLogin }: PerfilPrestadorProps) {
+export function PerfilPrestador({ id, isLoggedIn, isOwner, onLogin }: PerfilPrestadorProps) {
   const [noWhatsapp, setNoWhatsapp] = useState(false)
-  const pro = getProfessional(id)
+  const found = getProfessional(id)
+  const pro = found && (found.status === 'publicado' || isOwner) ? found : undefined
 
   if (!pro) {
     return (
@@ -35,25 +43,31 @@ export function PerfilPrestador({ id, isLoggedIn, onLogin }: PerfilPrestadorProp
     )
   }
 
-  const profession = findProfession(pro.professionId)
+  const professionNames = professionIdsOf(pro).map((id) => findProfession(id)?.name ?? id)
   const proFirstName = firstName(pro.name)
   // Sem login, só o primeiro nome
   const name = isLoggedIn ? pro.name : proFirstName
-  const services = Object.entries(pro.prices)
+  const services = pro.services
   const comments = reviewsFor(pro.id)
 
   return (
     <div className="app">
-      <PageBar title={profession?.name ?? 'Prestador'} />
+      <PageBar title={professionNames[0] ?? 'Prestador'} />
 
       <main className="page">
+        {pro.status === 'rascunho' && (
+          <p className="notice">
+            Rascunho: só você vê este perfil. Publique na aba{' '}
+            <a href={routes.servicos}>Serviços</a> para aparecer nas buscas.
+          </p>
+        )}
         <section className="profile profile-page">
-          <span className="avatar avatar-large" aria-hidden="true">
-            {initials(name)}
-          </span>
+          <Avatar name={name} photo={pro.photo} large />
           <div>
             <h1>{name}</h1>
-            <p className="sheet-profession">{profession?.name}</p>
+            <p className="sheet-profession">
+              {new Intl.ListFormat('pt-BR').format(professionNames)}
+            </p>
             <Rating rating={pro.rating} reviews={pro.reviews} />
             <span className="pro-place">
               <MapPin size={13} aria-hidden="true" /> {pro.neighborhood}
@@ -74,8 +88,8 @@ export function PerfilPrestador({ id, isLoggedIn, onLogin }: PerfilPrestadorProp
         <section className="page-section" aria-labelledby="servicos-title">
           <h2 id="servicos-title">Serviços</h2>
           <ul className="line-list">
-            {services.map(([task, price]) => (
-              <li key={task} className="line">
+            {services.map(({ professionId, name: task, price }) => (
+              <li key={`${professionId}-${task}`} className="line">
                 <span>{task}</span>
                 <span className="pro-price">
                   {price == null ? (

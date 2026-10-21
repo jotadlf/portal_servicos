@@ -1,24 +1,67 @@
 import { useState } from 'react'
-import { useHashRoute } from './hooks/useHashRoute'
-import { AreaPrestador } from './pages/AreaPrestador'
+import { getAccount, type Account } from './features/conta/usuario'
+import { routes, useHashRoute } from './hooks/useHashRoute'
+import { Conta } from './pages/Conta'
+import { Entrar } from './pages/Entrar'
 import { Inicio } from './pages/Inicio'
 import { PerfilPrestador } from './pages/PerfilPrestador'
+import { Publicar } from './pages/Publicar'
+import { Servicos } from './pages/Servicos'
 
 function App() {
   const route = useHashRoute()
-  // TODO: trocar pelo login do Supabase Auth. Por enquanto "Entrar" só simula a sessão.
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  // TODO: trocar pela sessão do Supabase Auth. Por enquanto a sessão vive só nesta aba.
+  const [accountId, setAccountId] = useState<string | null>(null)
+  // Página para onde voltar depois de entrar
+  const [returnTo, setReturnTo] = useState<string>(routes.inicio)
 
-  const login = () => setIsLoggedIn(true)
-  const logout = () => setIsLoggedIn(false)
+  const account = accountId ? getAccount(accountId) : undefined
+  const isLoggedIn = account != null
 
+  function login() {
+    const current = window.location.hash
+    setReturnTo(current && !/^#\/(entrar|cadastro)/.test(current) ? current : routes.inicio)
+    window.location.hash = routes.entrar
+  }
+
+  function handleSignedIn(signedIn: Account, next?: string) {
+    setAccountId(signedIn.id)
+    window.location.hash = next ?? returnTo
+    setReturnTo(routes.inicio)
+  }
+
+  const logout = () => setAccountId(null)
+
+  if (route.name === 'entrar') {
+    return <Entrar mode={route.mode} onSignedIn={handleSignedIn} />
+  }
   if (route.name === 'perfil') {
-    return <PerfilPrestador id={route.id} isLoggedIn={isLoggedIn} onLogin={login} />
+    return (
+      <PerfilPrestador
+        id={route.id}
+        isLoggedIn={isLoggedIn}
+        isOwner={account?.professionalId === route.id}
+        onLogin={login}
+      />
+    )
   }
-  if (route.name === 'area') {
-    return <AreaPrestador isLoggedIn={isLoggedIn} onLogin={login} />
+  if (route.name === 'servicos') {
+    return <Servicos key={account?.id} account={account} onLogin={login} />
   }
-  return <Inicio isLoggedIn={isLoggedIn} onLogin={login} onLogout={logout} />
+  if (route.name === 'publicar') {
+    return <Publicar account={account} onLogin={login} />
+  }
+  if (route.name === 'conta') {
+    return <Conta account={account} onLogin={login} onLogout={logout} />
+  }
+  return (
+    <Inicio
+      isLoggedIn={isLoggedIn}
+      userName={account?.name ?? ''}
+      onLogin={login}
+      onLogout={logout}
+    />
+  )
 }
 
 export default App
