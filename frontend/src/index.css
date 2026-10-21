@@ -4,14 +4,14 @@
 :root {
   --reboco: #ffffff;
   /* Fundo da página em verde-água; os cartões ficam brancos */
-  --fundo: #e0f4f0;
+  --fundo: #c4e5de;
   --superficie: #ffffff;
   --linha: #d3e5e2;
   --grafite: #1d2b2a;
   --cimento: #55625f;
   --metro: #f3c535;
-  --azulejo: #097369;
-  --azulejo-escuro: #075a52;
+  --azulejo: #08695f;
+  --azulejo-escuro: #06544c;
   --azulejo-tom: #e3f6f3;
   --azulejo-linha: #b8e3dc;
   --erro: #9b2c1f;
