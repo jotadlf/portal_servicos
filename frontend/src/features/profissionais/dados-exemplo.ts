@@ -106,6 +106,15 @@ export function updateProfessional(id: string, changes: Partial<Omit<Professiona
   if (professional) Object.assign(professional, changes)
 }
 
+// Quando uma modalidade sai do catálogo, os serviços dela saem dos perfis
+export function removeServicesOf(professionId: string) {
+  for (const professional of professionals) {
+    professional.services = professional.services.filter(
+      (service) => service.professionId !== professionId,
+    )
+  }
+}
+
 // Prestador novo: começa sem serviços e sem avaliações
 export function addProfessional(
   data: Pick<Professional, 'name' | 'neighborhood' | 'whatsapp' | 'photo'>,

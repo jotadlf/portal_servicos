@@ -1,0 +1,601 @@
+import { useRef, useState, type FormEvent } from 'react'
+import { ImagePlus, Trash2 } from 'lucide-react'
+import { BottomMenu } from '../components/BottomMenu'
+import { LoginBar } from '../components/LoginBar'
+import { PageBar } from '../components/PageBar'
+import { ColumnChart } from '../components/graficos/ColumnChart'
+import { LineChart } from '../components/graficos/LineChart'
+import { StackedBar } from '../components/graficos/StackedBar'
+import { getStats, servicesByProfession } from '../features/admin/estatisticas'
+import { monthlyHistory } from '../features/admin/historico'
+import {
+  formatMoney,
+  gateways,
+  getPlanSettings,
+  updatePlanSettings,
+  type PaymentGateway,
+} from '../features/conta/plano'
+import type { Account } from '../features/conta/usuario'
+import { removeServicesOf } from '../features/profissionais/dados-exemplo'
+import {
+  addProfession,
+  professions,
+  removeProfession,
+  type Profession,
+} from '../features/servicos/catalogo'
+import { normalize } from '../lib/format'
+
+const tabs = [
+  { id: 'painel', label: 'Painel' },
+  { id: 'modalidades', label: 'Modalidades' },
+  { id: 'plano', label: 'Plano e pagamentos' },
+] as const
+
+type TabId = (typeof tabs)[number]['id']
+
+type AdminProps = {
+  account?: Account
+  onLogin: () => void
+}
+
+export function Admin({ account, onLogin }: AdminProps) {
+  const [tab, setTab] = useState<TabId>('painel')
+
+  return (
+    <div className="app">
+      <PageBar title="Administração" />
+      <main className="page admin-page">
+        {!account && <LoginBar message="Entre com a conta de administração." onLogin={onLogin} />}
+
+        {account && !account.isAdmin && (
+          <div className="empty">
+            <p>Esta área é só para a administração do portal.</p>
+          </div>
+        )}
+
+        {account?.isAdmin && (
+          <>
+            <nav className="tabs" aria-label="Seções da administração">
+              {tabs.map(({ id, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={`tab${tab === id ? ' is-active' : ''}`}
+                  aria-pressed={tab === id}
+                  onClick={() => setTab(id)}
+                >
+                  {label}
+                </button>
+              ))}
+            </nav>
+
+            {tab === 'painel' && <Painel />}
+            {tab === 'modalidades' && <Modalidades />}
+            {tab === 'plano' && <PlanoForm />}
+          </>
+        )}
+      </main>
+
+      {account?.isAdmin && <BottomMenu current="admin" showAdmin />}
+    </div>
+  )
+}
+
+// Cores dos gráficos, validadas para daltonismo e contraste sobre o branco
+const CHART = {
+  primary: '#00897b',
+  secondary: '#eb6834',
+  tertiary: '#2a78d6',
+  muted: '#b9c6c3',
+}
+
+const periods = [
+  { months: 6, label: '6 meses' },
+  { months: 12, label: '12 meses' },
+]
+
+function Painel() {
+  const [months, setMonths] = useState(6)
+  const stats = getStats()
+  const history = monthlyHistory(months)
+  const labels = history.map((point) => point.label)
+  const ranking = servicesByProfession()
+  const max = Math.max(1, ...ranking.map(({ services }) => services))
+  const count = (value: number) => value.toLocaleString('pt-BR')
+
+  const tiles = [
+    {
+      label: 'Pessoas cadastradas',
+      value: count(stats.people),
+      note: `${stats.consumersOnly} ${stats.consumersOnly === 1 ? 'só contrata' : 'só contratam'} serviços`,
+    },
+    {
+      label: 'Prestadores publicados',
+      value: count(stats.published),
+      note: `de ${stats.providers} prestadores; ${stats.drafts} em rascunho`,
+    },
+    {
+      label: 'Serviços cadastrados',
+      value: count(stats.services),
+      note: `em ${stats.modalities} modalidades`,
+    },
+    {
+      label: 'Receita mensal recorrente',
+      value: formatMoney(stats.monthlyRevenue),
+      note: `${stats.paying} pagando agora`,
+    },
+  ]
+
+  return (
+    <>
+      <section className="kpi-grid" aria-label="Números de agora">
+        {tiles.map(({ label, value, note }) => (
+          <div key={label} className="stat-tile">
+            <span className="stat-label">{label}</span>
+            <strong className="stat-value">{value}</strong>
+            <span className="stat-note">{note}</span>
+          </div>
+        ))}
+      </section>
+
+      <ul className="mini-stats" aria-label="Outros números">
+        <li>
+          <b>{count(stats.contacts)}</b> contatos pedidos
+        </li>
+        <li>
+          <b>{count(stats.reviews)}</b> avaliações escritas
+        </li>
+        <li>
+          <b>{count(stats.inTrial)}</b> no período grátis
+        </li>
+      </ul>
+
+      <div className="dash-toolbar">
+        <h2>Evolução</h2>
+        <span className="sample-badge">Dados de exemplo</span>
+        <div className="segmented" role="group" aria-label="Período">
+          {periods.map((period) => (
+            <button
+              key={period.months}
+              type="button"
+              aria-pressed={months === period.months}
+              onClick={() => setMonths(period.months)}
+            >
+              {period.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="dash-grid">
+        <section className="chart-card" aria-labelledby="g-cadastros">
+          <h3 id="g-cadastros">Novos cadastros por mês</h3>
+          <p className="chart-sub">Pessoas que criaram conta no mês</p>
+          <LineChart
+            label="Novos cadastros por mês"
+            labels={labels}
+            series={[
+              {
+                name: 'Contratantes',
+                color: CHART.primary,
+                values: history.map((point) => point.newConsumers),
+              },
+              {
+                name: 'Prestadores',
+                color: CHART.secondary,
+                values: history.map((point) => point.newProviders),
+              },
+            ]}
+            format={count}
+          />
+        </section>
+
+        <section className="chart-card" aria-labelledby="g-receita">
+          <h3 id="g-receita">Receita recorrente</h3>
+          <p className="chart-sub">Soma mensal dos planos ativos no fim de cada mês</p>
+          <ColumnChart
+            label="Receita recorrente por mês"
+            name="Receita"
+            labels={labels}
+            values={history.map((point) => point.revenue)}
+            color={CHART.primary}
+            format={formatMoney}
+          />
+        </section>
+      </div>
+
+      <div className="dash-toolbar">
+        <h2>Agora</h2>
+      </div>
+
+      <div className="dash-grid">
+        <section className="chart-card" aria-labelledby="g-situacao">
+          <h3 id="g-situacao">Situação dos prestadores</h3>
+          <p className="chart-sub">{stats.providers} perfis de prestador</p>
+          <StackedBar
+            label={`Prestadores: ${stats.paying} pagando, ${stats.inTrial} no período grátis, ${stats.drafts} em rascunho`}
+            segments={[
+              { name: 'Pagando', value: stats.paying, color: CHART.primary },
+              { name: 'Período grátis', value: stats.inTrial, color: CHART.tertiary },
+              { name: 'Rascunho', value: stats.drafts, color: CHART.muted },
+            ]}
+          />
+        </section>
+
+        <section className="chart-card" aria-labelledby="g-modalidades">
+          <h3 id="g-modalidades">Serviços por modalidade</h3>
+          <p className="chart-sub">Quantos serviços cada modalidade tem cadastrados</p>
+          <ul className="bar-list">
+            {ranking.map(({ profession, services, providers }) => (
+              <li key={profession.id}>
+                <span className="bar-label">{profession.name}</span>
+                <span className="bar-track" aria-hidden="true">
+                  <span className="bar-fill" style={{ width: `${(services / max) * 100}%` }} />
+                </span>
+                <span className="bar-value">
+                  {services}
+                  <small>
+                    {providers} {providers === 1 ? 'prestador' : 'prestadores'}
+                  </small>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
+
+      <p className="section-note">
+        “Agora” usa os dados do protótipo e muda conforme você mexe no portal. “Evolução” é de
+        exemplo: o protótipo ainda não guarda a data dos cadastros e pagamentos.
+      </p>
+    </>
+  )
+}
+
+function Modalidades() {
+  const [, setVersion] = useState(0)
+  const refresh = () => setVersion((v) => v + 1)
+  const usage = new Map(servicesByProfession().map((item) => [item.profession.id, item]))
+
+  return (
+    <>
+      <NovaModalidade onAdded={refresh} />
+
+      <section className="page-section" aria-labelledby="modalidades-titulo">
+        <h2 id="modalidades-titulo">{professions.length} modalidades no catálogo</h2>
+        <ul className="line-list">
+          {professions.map((profession) => (
+            <ModalidadeItem
+              key={profession.id}
+              profession={profession}
+              services={usage.get(profession.id)?.services ?? 0}
+              providers={usage.get(profession.id)?.providers ?? 0}
+              onRemoved={refresh}
+            />
+          ))}
+        </ul>
+      </section>
+    </>
+  )
+}
+
+type ModalidadeItemProps = {
+  profession: Profession
+  services: number
+  providers: number
+  onRemoved: () => void
+}
+
+function ModalidadeItem({ profession, services, providers, onRemoved }: ModalidadeItemProps) {
+  // Remover pede confirmação, dizendo quantos serviços somem junto
+  const [confirming, setConfirming] = useState(false)
+  const Icon = profession.icon
+
+  function remove() {
+    removeServicesOf(profession.id)
+    removeProfession(profession.id)
+    onRemoved()
+  }
+
+  return (
+    <li className="line modality">
+      <span className="modality-icon">
+        {profession.image ? (
+          <img src={profession.image} alt="" width={28} height={28} />
+        ) : (
+          <Icon size={22} aria-hidden="true" />
+        )}
+      </span>
+      <span className="service-name">
+        {profession.name}
+        <small>
+          {services} {services === 1 ? 'serviço' : 'serviços'} de {providers}{' '}
+          {providers === 1 ? 'prestador' : 'prestadores'}
+        </small>
+      </span>
+      {confirming ? (
+        <span className="modality-confirm">
+          <button type="button" className="clear-filters" onClick={() => setConfirming(false)}>
+            Cancelar
+          </button>
+          <button type="button" className="danger-button" onClick={remove}>
+            {services > 0 ? `Remover e apagar ${services} serviços` : 'Remover'}
+          </button>
+        </span>
+      ) : (
+        <button
+          type="button"
+          className="icon-button"
+          aria-label={`Remover ${profession.name}`}
+          onClick={() => setConfirming(true)}
+        >
+          <Trash2 size={16} aria-hidden="true" />
+        </button>
+      )}
+    </li>
+  )
+}
+
+function NovaModalidade({ onAdded }: { onAdded: () => void }) {
+  const [name, setName] = useState('')
+  const [tasks, setTasks] = useState('')
+  const [image, setImage] = useState<string>()
+  const [error, setError] = useState('')
+  const [added, setAdded] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const trimmed = name.trim()
+    // Uma sugestão de serviço por linha
+    const list = tasks
+      .split('\n')
+      .map((task) => task.trim())
+      .filter(Boolean)
+
+    if (!trimmed) {
+      setError('Informe o nome da modalidade.')
+      return
+    }
+    if (professions.some((profession) => normalize(profession.name) === normalize(trimmed))) {
+      setError('Já existe uma modalidade com esse nome.')
+      return
+    }
+    if (list.length === 0) {
+      setError('Informe pelo menos um serviço, para a modalidade aparecer na busca.')
+      return
+    }
+
+    // TODO: enviar a imagem para o Supabase Storage.
+    addProfession({ name: trimmed, tasks: list, image })
+    setAdded(trimmed)
+    setName('')
+    setTasks('')
+    setImage(undefined)
+    onAdded()
+  }
+
+  return (
+    <form
+      className="page-section form admin-card"
+      onSubmit={handleSubmit}
+      onChange={() => {
+        setError('')
+        setAdded('')
+      }}
+      noValidate
+    >
+      <h2>Nova modalidade</h2>
+
+      <div className="modality-new">
+        <button
+          type="button"
+          className="modality-image"
+          aria-label={image ? 'Trocar imagem' : 'Adicionar imagem'}
+          onClick={() => fileRef.current?.click()}
+        >
+          {image ? <img src={image} alt="" /> : <ImagePlus size={24} aria-hidden="true" />}
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/png,image/svg+xml,image/webp"
+          hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) setImage(URL.createObjectURL(file))
+          }}
+        />
+        <label className="field">
+          <span>Nome</span>
+          <input
+            maxLength={40}
+            placeholder="Ex.: Marceneiro"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </label>
+      </div>
+      <small className="field-help">
+        Imagem opcional, de preferência PNG ou SVG com fundo transparente. Sem imagem, o card
+        mostra um ícone de ferramenta.
+      </small>
+
+      <label className="field">
+        <span>Serviços sugeridos (um por linha)</span>
+        <textarea
+          rows={4}
+          placeholder={'Montar móvel sob medida\nConsertar porta de armário'}
+          value={tasks}
+          onChange={(e) => setTasks(e.target.value)}
+        />
+      </label>
+
+      <div aria-live="polite">
+        {error && <p className="form-error">{error}</p>}
+        {added && <p className="form-ready">{added} já aparece na página inicial.</p>}
+      </div>
+
+      <button type="submit" className="primary">
+        Adicionar modalidade
+      </button>
+    </form>
+  )
+}
+
+// "19,90" ou "19.90" viram 19.9; texto inválido vira NaN
+function parseMoney(value: string) {
+  return Number(value.replace(/\./g, '').replace(',', '.'))
+}
+
+function moneyInput(value: number) {
+  return value.toFixed(2).replace('.', ',')
+}
+
+function PlanoForm() {
+  const settings = getPlanSettings()
+  const [monthly, setMonthly] = useState(moneyInput(settings.monthlyPrice))
+  const [semiannual, setSemiannual] = useState(moneyInput(settings.semiannualPrice))
+  const [trialDays, setTrialDays] = useState(String(settings.trialDays))
+  const [gateway, setGateway] = useState<PaymentGateway>(settings.gateway)
+  const [pixEnabled, setPixEnabled] = useState(settings.pixEnabled)
+  const [cardEnabled, setCardEnabled] = useState(settings.cardEnabled)
+  const [error, setError] = useState('')
+  const [saved, setSaved] = useState(false)
+
+  const monthlyValue = parseMoney(monthly)
+  const semiannualValue = parseMoney(semiannual)
+  const discount =
+    monthlyValue > 0 && semiannualValue > 0
+      ? Math.round((1 - semiannualValue / (monthlyValue * 6)) * 100)
+      : null
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const days = Number(trialDays)
+
+    if (!(monthlyValue > 0) || !(semiannualValue > 0)) {
+      setError('Informe os preços em reais, por exemplo 19,90.')
+      return
+    }
+    if (!Number.isInteger(days) || days < 0 || days > 90) {
+      setError('O período grátis precisa ser de 0 a 90 dias.')
+      return
+    }
+    if (!pixEnabled && !cardEnabled) {
+      setError('Deixe pelo menos uma forma de pagamento ligada.')
+      return
+    }
+
+    // Vale para quem publicar daqui em diante.
+    // TODO: no gateway, novos preços exigem um plano novo; assinaturas antigas mantêm o valor.
+    updatePlanSettings({
+      monthlyPrice: monthlyValue,
+      semiannualPrice: semiannualValue,
+      trialDays: days,
+      gateway,
+      pixEnabled,
+      cardEnabled,
+    })
+    setSaved(true)
+  }
+
+  return (
+    <form
+      className="page-section form"
+      onSubmit={handleSubmit}
+      onChange={() => {
+        setError('')
+        setSaved(false)
+      }}
+      noValidate
+    >
+      <section className="admin-card form">
+        <h2>Plano de prestador</h2>
+        <div className="address-row">
+          <label className="field">
+            <span>Mensal (R$)</span>
+            <input inputMode="decimal" value={monthly} onChange={(e) => setMonthly(e.target.value)} />
+          </label>
+          <label className="field">
+            <span>Semestral (R$)</span>
+            <input
+              inputMode="decimal"
+              value={semiannual}
+              onChange={(e) => setSemiannual(e.target.value)}
+            />
+          </label>
+        </div>
+        <small className="field-help">
+          {discount === null
+            ? 'Preços em reais, com vírgula nos centavos.'
+            : discount > 0
+              ? `O semestral sai ${discount}% mais barato que 6 meses do mensal.`
+              : 'Atenção: o semestral não está mais barato que 6 meses do mensal.'}
+        </small>
+
+        <label className="field">
+          <span>Dias grátis ao publicar</span>
+          <input
+            inputMode="numeric"
+            maxLength={2}
+            value={trialDays}
+            onChange={(e) => setTrialDays(e.target.value.replace(/\D/g, ''))}
+          />
+        </label>
+      </section>
+
+      <section className="admin-card form">
+        <h2>Pagamentos</h2>
+        <label className="field">
+          <span>Gateway de pagamento</span>
+          <select value={gateway} onChange={(e) => setGateway(e.target.value as PaymentGateway)}>
+            {gateways.map(({ id, label }) => (
+              <option key={id} value={id}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <fieldset className="toggle-group">
+          <legend>Formas de pagamento aceitas</legend>
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={pixEnabled}
+              onChange={(e) => setPixEnabled(e.target.checked)}
+            />
+            Pix (cobrança automática)
+          </label>
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={cardEnabled}
+              onChange={(e) => setCardEnabled(e.target.checked)}
+            />
+            Cartão de crédito
+          </label>
+        </fieldset>
+
+        <p className="section-note">
+          As chaves de acesso do gateway não ficam nesta tela: elas são guardadas no servidor
+          (Supabase), onde o app não consegue lê-las.
+        </p>
+      </section>
+
+      <div aria-live="polite">
+        {error && <p className="form-error">{error}</p>}
+        {saved && (
+          <p className="form-ready">
+            Configurações salvas nesta sessão. Valem para quem publicar a partir de agora.
+          </p>
+        )}
+      </div>
+
+      <button type="submit" className="primary">
+        Salvar configurações
+      </button>
+    </form>
+  )
+}

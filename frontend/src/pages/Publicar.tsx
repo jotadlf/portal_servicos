@@ -6,9 +6,9 @@ import {
   findPlan,
   formatMoney,
   planSavings,
-  plans,
   trialEndDate,
-  TRIAL_DAYS,
+  getPlans,
+  getPlanSettings,
   type PlanId,
 } from '../features/conta/plano'
 import { getAccountProfessional, type Account } from '../features/conta/usuario'
@@ -69,8 +69,12 @@ export function Publicar({ account, onLogin }: PublicarProps) {
 }
 
 function Checkout({ professionalId }: { professionalId: string }) {
+  const { trialDays, pixEnabled, cardEnabled } = getPlanSettings()
+  const plans = getPlans()
+  // Só as formas de pagamento ligadas na administração
+  const enabledMethods = methods.filter(({ id }) => (id === 'pix' ? pixEnabled : cardEnabled))
   const [planId, setPlanId] = useState<PlanId>('mensal')
-  const [method, setMethod] = useState<MethodId>('pix')
+  const [method, setMethod] = useState<MethodId | undefined>(enabledMethods[0]?.id)
   const plan = findPlan(planId)
   const firstCharge = trialEndDate()
 
@@ -92,7 +96,7 @@ function Checkout({ professionalId }: { professionalId: string }) {
         <h1 id="plano-titulo" className="page-title">
           Publique seu perfil
         </h1>
-        <p className="plan-trial">{TRIAL_DAYS} dias grátis em qualquer plano</p>
+        <p className="plan-trial">{trialDays} dias grátis em qualquer plano</p>
         <ul className="plan-benefits">
           {benefits.map((benefit) => (
             <li key={benefit}>
@@ -141,7 +145,12 @@ function Checkout({ professionalId }: { professionalId: string }) {
 
       <fieldset className="page-section choice-group">
         <legend>Forma de pagamento</legend>
-        {methods.map(({ id, label, note, icon: Icon }) => (
+        {enabledMethods.length === 0 && (
+          <p className="form-error">
+            Nenhuma forma de pagamento está disponível no momento. Tente de novo mais tarde.
+          </p>
+        )}
+        {enabledMethods.map(({ id, label, note, icon: Icon }) => (
           <label key={id} className={`choice${method === id ? ' is-active' : ''}`}>
             <input
               type="radio"
@@ -175,8 +184,8 @@ function Checkout({ professionalId }: { professionalId: string }) {
         </small>
       </section>
 
-      <button type="submit" className="primary">
-        Começar {TRIAL_DAYS} dias grátis e publicar
+      <button type="submit" className="primary" disabled={!method}>
+        Começar {trialDays} dias grátis e publicar
       </button>
     </form>
   )

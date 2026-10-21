@@ -6,6 +6,7 @@ export type Route =
   | { name: 'servicos' }
   | { name: 'conta' }
   | { name: 'publicar' }
+  | { name: 'admin' }
   | { name: 'entrar'; mode: 'login' | 'cadastro' }
 
 function parse(hash: string): Route {
@@ -15,6 +16,7 @@ function parse(hash: string): Route {
   if (parts[0] === 'servicos' || parts[0] === 'area') return { name: 'servicos' }
   if (parts[0] === 'conta') return { name: 'conta' }
   if (parts[0] === 'publicar') return { name: 'publicar' }
+  if (parts[0] === 'admin') return { name: 'admin' }
   if (parts[0] === 'entrar') return { name: 'entrar', mode: 'login' }
   if (parts[0] === 'cadastro') return { name: 'entrar', mode: 'cadastro' }
   return { name: 'inicio' }
@@ -22,7 +24,13 @@ function parse(hash: string): Route {
 
 // Rotas pelo "#" da URL: funcionam no PWA e no GitHub Pages sem configurar o servidor
 export function useHashRoute() {
-  const [route, setRoute] = useState(() => parse(window.location.hash))
+  const [route, setRoute] = useState(() => {
+    // "/admin" digitado sem o "#" vira "#/admin"
+    if (!window.location.hash && /\/admin\/?$/.test(window.location.pathname)) {
+      window.history.replaceState(null, '', `/${routes.admin}`)
+    }
+    return parse(window.location.hash)
+  })
 
   useEffect(() => {
     function handleChange() {
@@ -42,6 +50,7 @@ export const routes = {
   servicos: '#/servicos',
   conta: '#/conta',
   publicar: '#/publicar',
+  admin: '#/admin',
   entrar: '#/entrar',
   cadastro: '#/cadastro',
 }

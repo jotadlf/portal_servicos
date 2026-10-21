@@ -3,6 +3,7 @@ import { Avatar } from '../components/Avatar'
 import { BottomMenu } from '../components/BottomMenu'
 import { LoginBar } from '../components/LoginBar'
 import { updateAccount, type Account, type Address } from '../features/conta/usuario'
+import { routes } from '../hooks/useHashRoute'
 import { fetchAddress, formatCep } from '../lib/cep'
 import { formatPhone, isValidPhone } from '../lib/whatsapp'
 
@@ -26,7 +27,7 @@ export function Conta({ account, onLogin, onLogout }: ContaProps) {
         )}
       </main>
 
-      <BottomMenu current="conta" />
+      <BottomMenu current="conta" showAdmin={account?.isAdmin} />
     </div>
   )
 }
@@ -115,6 +116,12 @@ function PerfilForm({ account, onLogout }: { account: Account; onLogout: () => v
   return (
     <form className="page-section form" onSubmit={handleSubmit} onChange={() => setSaved(false)}>
       <h1 className="page-title">Seu perfil</h1>
+
+      {account.isAdmin && (
+        <a className="primary admin-link" href={routes.admin}>
+          Abrir administração do portal
+        </a>
+      )}
 
       <div className="photo-field">
         <Avatar name={name || account.name} photo={photo} large />

@@ -23,6 +23,9 @@ export type Account = {
   address: Address
   // Perfil público como prestador. Sem ele, a pessoa só contrata serviços.
   professionalId?: string
+  // Acesso à tela de administração.
+  // TODO: no Supabase, conferir o papel no servidor (RLS), não só esconder a tela.
+  isAdmin?: boolean
 }
 
 const emptyAddress: Address = {
@@ -38,6 +41,7 @@ const emptyAddress: Address = {
 // Usuários de teste (senha: teste123):
 // - carlos@exemplo.com: prestador desde o início (eletricista, com contatos e avaliações)
 // - beatriz@exemplo.com: só consumidora
+// - admin@exemplo.com: administração do portal
 const accounts: Account[] = [
   {
     id: 'u1',
@@ -56,7 +60,20 @@ const accounts: Account[] = [
     phone: '',
     address: { ...emptyAddress, neighborhood: 'Setor Marista', city: 'Goiânia', state: 'GO' },
   },
+  {
+    id: 'u3',
+    email: 'admin@exemplo.com',
+    password: 'teste123',
+    name: 'Administração',
+    phone: '',
+    address: { ...emptyAddress },
+    isAdmin: true,
+  },
 ]
+
+export function getAccounts() {
+  return accounts
+}
 
 function sameEmail(a: string, b: string) {
   return a.trim().toLowerCase() === b.trim().toLowerCase()

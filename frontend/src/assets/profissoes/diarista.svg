@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="cabo" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f3c28b"/>
+      <stop offset="0.5" stop-color="#d4925a"/>
+      <stop offset="1" stop-color="#9c5f30"/>
+    </linearGradient>
+    <linearGradient id="anel" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#8a5a8f"/>
+      <stop offset="1" stop-color="#4f2f57"/>
+    </linearGradient>
+    <radialGradient id="pena-media" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#6b6f76"/>
+      <stop offset="0.55" stop-color="#2e3136"/>
+      <stop offset="1" stop-color="#121316"/>
+    </radialGradient>
+    <radialGradient id="pena-escura" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#55595f"/>
+      <stop offset="0.55" stop-color="#25272b"/>
+      <stop offset="1" stop-color="#0c0d0f"/>
+    </radialGradient>
+    <radialGradient id="pena-clara" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#7d828a"/>
+      <stop offset="0.6" stop-color="#383b40"/>
+      <stop offset="1" stop-color="#16171a"/>
+    </radialGradient>
+  </defs>
+
+  <!-- cabo de madeira, na diagonal -->
+  <g transform="rotate(-38 128 128)">
+    <rect x="116" y="138" width="24" height="112" rx="12" fill="url(#cabo)"/>
+    <rect x="122" y="146" width="5" height="90" rx="2.5" fill="#ffffff" opacity="0.35"/>
+    <rect x="112" y="128" width="32" height="18" rx="7" fill="url(#anel)"/>
+
+    <!-- penas, em leque a partir do anel -->
+    <g>
+      <ellipse cx="96" cy="72" rx="24" ry="52" transform="rotate(-28 96 72)" fill="url(#pena-escura)"/>
+      <ellipse cx="160" cy="72" rx="24" ry="52" transform="rotate(28 160 72)" fill="url(#pena-escura)"/>
+      <ellipse cx="108" cy="62" rx="25" ry="58" transform="rotate(-12 108 62)" fill="url(#pena-media)"/>
+      <ellipse cx="148" cy="62" rx="25" ry="58" transform="rotate(12 148 62)" fill="url(#pena-media)"/>
+      <ellipse cx="128" cy="56" rx="27" ry="64" fill="url(#pena-clara)"/>
+      <path d="M128 124 Q126 80 128 14" fill="none" stroke="#9aa0a8" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
+      <path d="M118 122 Q104 84 92 30" fill="none" stroke="#8a9098" stroke-width="2.5" stroke-linecap="round" opacity="0.45"/>
+      <path d="M138 122 Q152 84 164 30" fill="none" stroke="#8a9098" stroke-width="2.5" stroke-linecap="round" opacity="0.45"/>
+    </g>
+  </g>
+</svg>

@@ -66,7 +66,7 @@ export function Servicos({ account, onLogin }: ServicosProps) {
         )}
       </main>
 
-      <BottomMenu current="servicos" />
+      <BottomMenu current="servicos" showAdmin={account?.isAdmin} />
     </div>
   )
 }
@@ -292,7 +292,11 @@ function ServicosForm({ pro, onChange }: { pro: Professional; onChange: () => vo
       {groups.map(({ profession, items }) => (
         <div key={profession.id} className="service-group">
           <h2 className="service-group-title">
-            <img src={profession.image} alt="" width={20} height={20} />
+            {profession.image ? (
+              <img src={profession.image} alt="" width={20} height={20} />
+            ) : (
+              <profession.icon size={18} aria-hidden="true" />
+            )}
             {profession.name}
           </h2>
           <ul className="line-list">

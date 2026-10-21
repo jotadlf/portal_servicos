@@ -6,19 +6,20 @@ import { BottomMenu } from '../components/BottomMenu'
 import { BlurredPrice, LoginBar } from '../components/LoginBar'
 import { Rating } from '../components/Rating'
 import { priceFor, professionalsFor, type Professional } from '../features/profissionais/dados-exemplo'
-import { allTasks, professions, type Task } from '../features/servicos/catalogo'
+import { getAllTasks, professions, type Task } from '../features/servicos/catalogo'
 import { routes } from '../hooks/useHashRoute'
 import { firstName, formatPrice, greeting, normalize } from '../lib/format'
 import { contactMessage, openWhatsapp } from '../lib/whatsapp'
 
 type InicioProps = {
   isLoggedIn: boolean
+  isAdmin: boolean
   userName: string
   onLogin: () => void
   onLogout: () => void
 }
 
-export function Inicio({ isLoggedIn, userName, onLogin, onLogout }: InicioProps) {
+export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: InicioProps) {
   const [query, setQuery] = useState('')
   const [filters, setFilters] = useState<string[]>([])
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
@@ -30,7 +31,7 @@ export function Inicio({ isLoggedIn, userName, onLogin, onLogout }: InicioProps)
   const results = useMemo(() => {
     const term = normalize(query.trim())
 
-    return allTasks.filter(({ title, profession }) => {
+    return getAllTasks().filter(({ title, profession }) => {
       const matchesFilter = filters.length === 0 || filters.includes(profession.id)
       const matchesQuery = !term || normalize(`${title} ${profession.name}`).includes(term)
       return matchesFilter && matchesQuery
@@ -129,7 +130,7 @@ export function Inicio({ isLoggedIn, userName, onLogin, onLogout }: InicioProps)
         <section aria-label="Profissões">
           <ul className="profession-grid">
             {professions.map((profession) => {
-              const { id, name, image } = profession
+              const { id, name, image, icon: Icon } = profession
               const isActive = filters.includes(id)
               return (
                 <li key={id}>
@@ -140,7 +141,11 @@ export function Inicio({ isLoggedIn, userName, onLogin, onLogout }: InicioProps)
                     onClick={() => toggleFilter(id)}
                   >
                     <span className="profession-tile">
-                      <img src={image} alt="" width={56} height={56} />
+                      {image ? (
+                        <img src={image} alt="" width={56} height={56} />
+                      ) : (
+                        <Icon size={30} strokeWidth={1.75} aria-hidden="true" />
+                      )}
                     </span>
                     <span className="profession-name">{name}</span>
                   </button>
@@ -371,6 +376,7 @@ export function Inicio({ isLoggedIn, userName, onLogin, onLogout }: InicioProps)
 
       <BottomMenu
         current="inicio"
+        showAdmin={isAdmin}
         onInicio={() => {
           setQuery('')
           setFilters([])
