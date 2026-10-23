@@ -9,7 +9,7 @@ export type Route =
   | { name: 'admin' }
   | { name: 'entrar'; mode: 'login' | 'cadastro' }
 
-function parse(hash: string): Route {
+export function parse(hash: string): Route {
   const parts = hash.replace(/^#\/?/, '').split('/')
   if (parts[0] === 'prestador' && parts[1]) return { name: 'perfil', id: parts[1] }
   // "#/area" era a antiga Área do prestador
