@@ -10,14 +10,19 @@ import {
   samplePlanSettings,
   sampleProfessionals,
   sampleProfessions,
+  samplePhone,
+  samplePhotoId,
   sampleReviews,
 } from './seed-data.ts'
+import { avatarPng } from './seed-fotos.ts'
 
 // Caminho montado à mão: nos testes de tela o Vite reescreveria `new URL('./schema.sql', import.meta.url)`
 const schema = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'schema.sql'), 'utf8')
 
 // O hash da senha de teste é lento de propósito (scrypt); calcula uma vez por processo
 let samplePasswordHash: Promise<string> | undefined
+// As fotos fictícias também: geradas uma vez por processo
+let samplePhotos: Buffer[] | undefined
 
 // Abre (ou cria) o banco, aplica o schema e grava os dados de exemplo se estiver vazio.
 // ':memory:' cria um banco só na memória, usado nos testes.
@@ -67,20 +72,38 @@ function seed(db: Db, passwordHash: string) {
       insertProfession.run(p.id, p.name, JSON.stringify(p.tasks), index)
     })
 
+    const insertPhoto = db.prepare(`INSERT INTO photos (id, mime, data) VALUES (?, 'image/png', ?)`)
     const insertProfessional = db.prepare(
-      `INSERT INTO professionals (id, account_id, name, neighborhood, about, status, rating, reviews)
-       VALUES (?, ?, ?, ?, ?, 'publicado', ?, ?)`,
+      `INSERT INTO professionals (id, account_id, name, neighborhood, whatsapp, photo_id, about, status, rating, reviews)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'publicado', ?, ?)`,
     )
+    // Quem tem conta (Carlos) recebe na conta o mesmo WhatsApp e foto do perfil
+    const updateOwner = db.prepare('UPDATE accounts SET phone = ?, photo_id = ? WHERE id = ?')
     const insertService = db.prepare(
       'INSERT INTO services (professional_id, profession_id, name, price, position) VALUES (?, ?, ?, ?, ?)',
     )
-    for (const p of sampleProfessionals) {
+    samplePhotos ??= sampleProfessionals.map((_, index) => avatarPng(index))
+    sampleProfessionals.forEach((p, index) => {
       const owner = sampleAccounts.find((a) => a.professionalId === p.id)
-      insertProfessional.run(p.id, owner?.id ?? null, p.name, p.neighborhood, p.about ?? '', p.rating, p.reviews)
-      Object.entries(p.prices).forEach(([name, price], index) => {
-        insertService.run(p.id, p.professionId, name, price, index)
+      const phone = samplePhone(index + 1)
+      const photoId = samplePhotoId(p.id)
+      insertPhoto.run(photoId, samplePhotos![index])
+      insertProfessional.run(
+        p.id,
+        owner?.id ?? null,
+        p.name,
+        p.neighborhood,
+        phone,
+        photoId,
+        p.about ?? '',
+        p.rating,
+        p.reviews,
+      )
+      if (owner) updateOwner.run(phone, photoId, owner.id)
+      Object.entries(p.prices).forEach(([name, price], position) => {
+        insertService.run(p.id, p.professionId, name, price, position)
       })
-    }
+    })
 
     const insertReview = db.prepare(
       'INSERT INTO reviews (id, professional_id, author, rating, comment, date) VALUES (?, ?, ?, ?, ?, ?)',

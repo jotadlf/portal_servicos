@@ -58,6 +58,7 @@ describe('PerfilPrestador', () => {
   })
 
   it('avisa quando o prestador não tem WhatsApp', async () => {
+    apiServer().db.prepare(`UPDATE professionals SET whatsapp = '' WHERE id = 'p1'`).run()
     await loginAs('beatriz@exemplo.com')
     await renderPerfil({ isLoggedIn: true })
     await userEvent.click(screen.getByRole('button', { name: 'Falar com Carlos no WhatsApp' }))

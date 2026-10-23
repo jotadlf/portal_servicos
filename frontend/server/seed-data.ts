@@ -36,6 +36,12 @@ export type SampleContact = {
 // Senha de todas as contas de teste
 export const SAMPLE_PASSWORD = 'teste123'
 
+// WhatsApp fictício do prestador de exemplo n (1, 2...): (62) 90000-0001, (62) 90000-0002...
+export const samplePhone = (n: number) => `6290000${String(n).padStart(4, '0')}`
+
+// Id da foto fictícia de cada prestador de exemplo; os testes a separam das enviadas
+export const samplePhotoId = (professionalId: string) => `exemplo-${professionalId}`
+
 // - carlos@exemplo.com: prestador desde o início (eletricista, com contatos e avaliações)
 // - beatriz@exemplo.com: só consumidora
 // - admin@exemplo.com: administração do portal

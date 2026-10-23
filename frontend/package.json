@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n api,web -c blue,green \"node --watch server/index.ts\" \"vite\"",
+    "dev:celular": "concurrently -k -n api,web -c blue,green \"node --watch server/index.ts\" \"vite --host\"",
     "server": "node server/index.ts",
     "db:reset": "node server/reset.ts",
     "build": "tsc -b && vite build",

@@ -483,6 +483,38 @@ button {
   overflow-y: auto;
 }
 
+/* Procurar por nome e ordenar, acima da lista de profissionais */
+.pro-tools {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.pro-sort {
+  height: 42px;
+  padding: 0 10px;
+  border: 1px solid var(--linha);
+  border-radius: 12px;
+  color: var(--grafite);
+  background: var(--superficie);
+  font-size: 0.9375rem;
+}
+
+.pro-sort:focus {
+  outline: none;
+  border-color: var(--grafite);
+}
+
+.sheet-login {
+  position: sticky;
+  bottom: 0;
+  /* Cobre a lista que passa por baixo, até a borda da folha */
+  margin: 0 calc(-1 * var(--gutter)) -20px;
+  padding: 10px var(--gutter) 20px;
+  background: var(--superficie);
+  box-shadow: 0 -6px 12px rgb(36 40 44 / 0.06);
+}
+
 .sheet-hint {
   margin: -4px 0 0;
   color: var(--cimento);
@@ -502,6 +534,50 @@ button {
 
 .pro-list li + li {
   border-top: 1px solid var(--linha);
+}
+
+/* Linha do prestador: a parte de cima abre o perfil; embaixo, alinhado ao nome, o WhatsApp */
+.pro-row {
+  display: grid;
+}
+
+.pro-row .pro {
+  padding-bottom: 4px;
+}
+
+/* O destaque do mouse vale para a linha inteira, não só para a parte de cima */
+.pro-row:has(.pro:hover) {
+  background: var(--azulejo-tom);
+}
+
+.pro-row:has(.pro:hover) .pro-whatsapp {
+  background: var(--reboco);
+}
+
+.pro-whatsapp {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  justify-self: start;
+  /* Avatar (44px) + espaço (12px) + margem da linha (14px) */
+  margin: 0 14px 10px 70px;
+  padding: 6px 12px 6px 10px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--azulejo);
+  background: var(--azulejo-tom);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.pro-whatsapp:hover {
+  background: var(--azulejo-linha);
+}
+
+/* Verde do WhatsApp; texto continua na cor do app, com contraste */
+.whatsapp-icon {
+  flex: none;
+  color: #1da851;
 }
 
 .pro {

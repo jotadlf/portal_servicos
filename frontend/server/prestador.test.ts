@@ -16,21 +16,25 @@ const search = (token?: string) =>
   server.request('GET', '/api/prestadores?profissao=eletricista&servico=Instalar%20chuveiro', undefined, token)
 
 describe('Busca de prestadores', () => {
-  it('sem login: só o primeiro nome, sem preço e sem WhatsApp (nada disso sai do servidor)', async () => {
-    server.db.prepare(`UPDATE professionals SET whatsapp = '62988887777' WHERE id = 'p1'`).run()
+  it('sem login: só o primeiro nome, sem foto, preço e WhatsApp (nada disso sai do servidor)', async () => {
+    server.db.prepare(`INSERT INTO photos (id, mime, data) VALUES ('f1', 'image/png', x'00')`).run()
+    server.db.prepare(`UPDATE professionals SET whatsapp = '62988887777', photo_id = 'f1' WHERE id = 'p1'`).run()
     const { body } = await search()
     const carlos = body.find((p: { id: string }) => p.id === 'p1')
     expect(carlos.name).toBe('Carlos')
+    expect(carlos.photo).toBeUndefined()
     expect(carlos.whatsapp).toBeUndefined()
+    expect(carlos.reviews).toBeGreaterThan(0)
     expect(carlos.services[0]).toEqual({ professionId: 'eletricista', name: 'Instalar chuveiro', price: null, hidden: true })
     expect(JSON.stringify(body)).not.toMatch(/Henrique|62988887777/)
   })
 
-  it('com login: nome completo, preço e WhatsApp', async () => {
-    server.db.prepare(`UPDATE professionals SET whatsapp = '62988887777' WHERE id = 'p1'`).run()
+  it('com login: nome completo, foto, preço e WhatsApp', async () => {
+    server.db.prepare(`INSERT INTO photos (id, mime, data) VALUES ('f1', 'image/png', x'00')`).run()
+    server.db.prepare(`UPDATE professionals SET whatsapp = '62988887777', photo_id = 'f1' WHERE id = 'p1'`).run()
     const token = await signIn(server, 'beatriz@exemplo.com')
     const carlos = (await search(token)).body.find((p: { id: string }) => p.id === 'p1')
-    expect(carlos).toMatchObject({ name: 'Carlos Henrique', whatsapp: '62988887777' })
+    expect(carlos).toMatchObject({ name: 'Carlos Henrique', photo: '/api/fotos/f1', whatsapp: '62988887777' })
     expect(carlos.services[0].price).toBe(150)
   })
 

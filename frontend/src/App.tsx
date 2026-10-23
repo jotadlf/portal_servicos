@@ -61,7 +61,7 @@ function App() {
   if (route.name === 'entrar') {
     // Voltar pelo navegador depois de entrar não mostra o formulário de novo
     if (signedIn) return <AlreadySignedIn name={signedIn.name} />
-    return <Entrar mode={route.mode} onSignedIn={handleSignedIn} />
+    return <Entrar mode={route.mode} onSignedIn={handleSignedIn} guestHref={returnTo} />
   }
   if (route.name === 'perfil') {
     return (

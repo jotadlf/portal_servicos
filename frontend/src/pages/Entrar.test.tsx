@@ -24,6 +24,11 @@ describe('Entrar: login real', () => {
     expect(dbRow('SELECT count(*) AS n FROM sessions WHERE account_id = ?', 'u1')?.n).toBe(1)
   })
 
+  it('oferece entrar como visitante, voltando para a página de antes', () => {
+    render(<Entrar mode="login" onSignedIn={vi.fn()} guestHref="#/servicos" />)
+    expect(screen.getByRole('link', { name: 'Entrar como visitante' })).toHaveAttribute('href', '#/servicos')
+  })
+
   it('avisa quando a senha está errada e limpa o aviso ao digitar', async () => {
     const onSignedIn = vi.fn()
     render(<Entrar mode="login" onSignedIn={onSignedIn} />)

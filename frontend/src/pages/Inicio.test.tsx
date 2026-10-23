@@ -19,7 +19,7 @@ const sheet = () => within(document.querySelector('dialog')!)
 async function openTask(title: string) {
   await userEvent.type(screen.getByRole('searchbox', { name: 'Buscar serviço' }), title)
   await userEvent.click(screen.getByRole('button', { name: new RegExp(title) }))
-  await sheet().findByText('Ordenados pela reputação.')
+  await sheet().findByRole('combobox', { name: 'Ordenar por' })
 }
 
 describe('Inicio: busca', () => {
@@ -90,6 +90,7 @@ describe('Inicio: profissionais', () => {
   })
 
   it('com login mostra nome completo, preço e o contato', async () => {
+    apiServer().db.prepare(`UPDATE professionals SET whatsapp = '' WHERE id = 'p1'`).run()
     await loginAs('beatriz@exemplo.com')
     await renderInicio({ isLoggedIn: true, userName: 'Beatriz Rocha' })
     await openTask('Instalar chuveiro')
@@ -111,6 +112,69 @@ describe('Inicio: profissionais', () => {
     await userEvent.click(sheet().getByRole('button', { name: /Carlos Henrique/ }))
     await userEvent.click(sheet().getByRole('button', { name: 'Falar com Carlos no WhatsApp' }))
     expect(open).toHaveBeenCalledWith(expect.stringMatching(/^https:\/\/wa\.me\/5562988887777\?text=/), '_blank', 'noopener,noreferrer')
+  })
+
+  it('abre o WhatsApp direto da lista, sem abrir o perfil', async () => {
+    apiServer().db.prepare(`UPDATE professionals SET whatsapp = '62988887777' WHERE id = 'p1'`).run()
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    await loginAs('beatriz@exemplo.com')
+    await renderInicio({ isLoggedIn: true, userName: 'Beatriz Rocha' })
+    await openTask('Instalar chuveiro')
+    await userEvent.click(sheet().getByRole('button', { name: 'Falar com Carlos no WhatsApp' }))
+    expect(open).toHaveBeenCalledWith(expect.stringMatching(/^https:\/\/wa\.me\/5562988887777\?text=/), '_blank', 'noopener,noreferrer')
+  })
+
+  it('sem login a lista mostra o WhatsApp desfocado e o toque leva ao login', async () => {
+    apiServer().db.prepare(`UPDATE professionals SET whatsapp = '62988887777' WHERE id = 'p1'`).run()
+    const { onLogin } = await renderInicio()
+    await openTask('Instalar chuveiro')
+    expect(sheet().queryByText(/98888-7777/)).not.toBeInTheDocument()
+    const locked = sheet().getAllByRole('button', { name: 'WhatsApp visível após entrar' })
+    expect(locked.length).toBeGreaterThan(0)
+    await userEvent.click(locked[0])
+    expect(onLogin).toHaveBeenCalled()
+  })
+
+  // Nomes na ordem em que estão na lista
+  const listed = () => [...document.querySelectorAll('dialog .pro-name')].map((el) => el.textContent)
+
+  it('ordena por reputação, nome e menor valor ("a combinar" no fim)', async () => {
+    apiServer().db.prepare(`UPDATE professionals SET name = 'Wagner Lima' WHERE id = 'p1'`).run()
+    await loginAs('beatriz@exemplo.com')
+    await renderInicio({ isLoggedIn: true, userName: 'Beatriz Rocha' })
+    await openTask('Instalar chuveiro')
+    expect(listed()).toEqual(['Wagner Lima', 'Marcos Vinícius', 'Rafael Souza'])
+
+    const sortBy = sheet().getByRole('combobox', { name: 'Ordenar por' })
+    await userEvent.selectOptions(sortBy, 'nome')
+    expect(listed()).toEqual(['Marcos Vinícius', 'Rafael Souza', 'Wagner Lima'])
+
+    // Wagner R$ 150, Marcos R$ 120, Rafael a combinar
+    await userEvent.selectOptions(sortBy, 'valor')
+    expect(listed()).toEqual(['Marcos Vinícius', 'Wagner Lima', 'Rafael Souza'])
+  })
+
+  it('procura profissional por nome, sem ligar para acento e maiúscula', async () => {
+    await loginAs('beatriz@exemplo.com')
+    await renderInicio({ isLoggedIn: true, userName: 'Beatriz Rocha' })
+    await openTask('Instalar chuveiro')
+    const search = sheet().getByRole('searchbox', { name: 'Procurar profissional por nome' })
+
+    await userEvent.type(search, 'vinicius')
+    expect(listed()).toEqual(['Marcos Vinícius'])
+
+    await userEvent.clear(search)
+    await userEvent.type(search, 'xyz')
+    expect(sheet().getByText('Nenhum profissional com esse nome.')).toBeInTheDocument()
+  })
+
+  it('sem login não ordena por valor e procura só pelo primeiro nome', async () => {
+    await renderInicio()
+    await openTask('Instalar chuveiro')
+    expect(sheet().getByRole('option', { name: 'Menor valor (entre para ver)' })).toBeDisabled()
+
+    await userEvent.type(sheet().getByRole('searchbox', { name: 'Procurar profissional por nome' }), 'souza')
+    expect(sheet().getByText('Nenhum profissional com esse nome.')).toBeInTheDocument()
   })
 
   it('rascunho não aparece na lista', async () => {

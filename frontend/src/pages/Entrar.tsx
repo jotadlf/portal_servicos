@@ -17,11 +17,13 @@ type EntrarProps = {
   mode: 'login' | 'cadastro'
   // next: página para onde ir em vez de voltar à anterior
   onSignedIn: (account: Account, next?: string) => void
+  // Página para onde vai quem prefere continuar sem conta
+  guestHref?: string
 }
 
 const MIN_PASSWORD = 6
 
-export function Entrar({ mode, onSignedIn }: EntrarProps) {
+export function Entrar({ mode, onSignedIn, guestHref = routes.inicio }: EntrarProps) {
   const isSignup = mode === 'cadastro'
 
   return (
@@ -55,6 +57,11 @@ export function Entrar({ mode, onSignedIn }: EntrarProps) {
           <a href={isSignup ? routes.entrar : routes.cadastro}>
             {isSignup ? 'Entrar' : 'Criar conta'}
           </a>
+        </p>
+
+        {/* Visitante vê os serviços, mas sem preço, foto e WhatsApp dos prestadores */}
+        <p className="auth-switch">
+          <a href={guestHref}>Entrar como visitante</a>
         </p>
       </main>
     </div>

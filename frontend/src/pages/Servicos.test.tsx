@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { Account } from '../features/conta/usuario'
-import { dbRow, dbRows, loginAs, newAccount, readyProvider } from '../test/api-server'
+import { apiServer, dbRow, dbRows, loginAs, newAccount, readyProvider } from '../test/api-server'
 import { Servicos } from './Servicos'
 
 function renderServicos(account?: Account) {
@@ -138,6 +138,7 @@ describe('Servicos: publicação', () => {
 
 describe('Servicos: perfil publicado', () => {
   it('mostra o plano e pede o WhatsApp', async () => {
+    apiServer().db.prepare(`UPDATE professionals SET whatsapp = '' WHERE id = 'p1'`).run()
     renderServicos(await loginAs('carlos@exemplo.com'))
     expect(await screen.findByText(/Perfil publicado\. Plano mensal/)).toBeInTheDocument()
     expect(screen.getByText(/Cadastre seu WhatsApp no/)).toBeInTheDocument()

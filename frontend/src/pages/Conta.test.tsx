@@ -184,7 +184,7 @@ describe('Conta: foto', () => {
     expect(screen.getByRole('button', { name: 'Adicionar foto' })).toHaveAccessibleDescription(
       'Escolha um arquivo de imagem, como JPG ou PNG.',
     )
-    expect(dbRow('SELECT count(*) AS n FROM photos')?.n).toBe(0)
+    expect(dbRow(`SELECT count(*) AS n FROM photos WHERE id NOT LIKE 'exemplo-%'`)?.n).toBe(0)
   })
 
   it('o servidor recusa arquivo disfarçado de imagem', async () => {
@@ -195,7 +195,7 @@ describe('Conta: foto', () => {
         'Escolha um arquivo de imagem, como JPG ou PNG.',
       ),
     )
-    expect(dbRow('SELECT count(*) AS n FROM photos')?.n).toBe(0)
+    expect(dbRow(`SELECT count(*) AS n FROM photos WHERE id NOT LIKE 'exemplo-%'`)?.n).toBe(0)
   })
 
   it('recusa foto maior que 5 MB', async () => {

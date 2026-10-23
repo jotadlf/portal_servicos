@@ -134,7 +134,7 @@ describe('Perfil: foto', () => {
     const { token } = await signUp(server)
     await server.request('POST', '/api/conta/foto', { photo: PNG_1PX }, token)
     await server.request('POST', '/api/conta/foto', { photo: PNG_1PX }, token)
-    expect(row('SELECT count(*) AS n FROM photos').n).toBe(1)
+    expect(row(`SELECT count(*) AS n FROM photos WHERE id NOT LIKE 'exemplo-%'`).n).toBe(1)
   })
 
   it.each([
@@ -147,7 +147,7 @@ describe('Perfil: foto', () => {
     const response = await server.request('POST', '/api/conta/foto', { photo }, token)
     expect(response.status).toBe(400)
     expect(response.body.fields.photo).toBe('Escolha um arquivo de imagem, como JPG ou PNG.')
-    expect(row('SELECT count(*) AS n FROM photos').n).toBe(0)
+    expect(row(`SELECT count(*) AS n FROM photos WHERE id NOT LIKE 'exemplo-%'`).n).toBe(0)
   })
 
   it('recusa foto acima de 5 MB', async () => {

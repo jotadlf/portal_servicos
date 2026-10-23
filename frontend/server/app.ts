@@ -460,7 +460,7 @@ const PRIOR_RATING = 4
 const reputation = ({ rating, reviews }: ProfessionalRow) =>
   (rating * reviews + PRIOR_RATING * PRIOR_REVIEWS) / (reviews + PRIOR_REVIEWS)
 
-// Sem login: só o primeiro nome, sem preços nem WhatsApp. Esses dados nem saem do servidor.
+// Sem login: só o primeiro nome, sem foto, preços nem WhatsApp. Esses dados nem saem do servidor.
 function professionalJson(row: ProfessionalRow, services: ServiceRow[], viewer: Viewer) {
   const full = viewer !== undefined
   return {
@@ -472,7 +472,7 @@ function professionalJson(row: ProfessionalRow, services: ServiceRow[], viewer: 
       price: full ? s.price : null,
       hidden: !full && s.price !== null ? true : undefined,
     })),
-    photo: photoUrl(row.photo_id),
+    photo: full ? photoUrl(row.photo_id) : undefined,
     status: row.status,
     trialEndsAt: row.trial_ends_at ?? undefined,
     plan: row.plan ?? undefined,

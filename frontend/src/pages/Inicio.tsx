@@ -6,6 +6,7 @@ import { BottomMenu } from '../components/BottomMenu'
 import { BlurredPrice, LoginBar } from '../components/LoginBar'
 import { Rating } from '../components/Rating'
 import { LoadError, Loading } from '../components/Status'
+import { WhatsappIcon } from '../components/WhatsappIcon'
 import {
   fetchProfessionalsFor,
   serviceFor,
@@ -16,7 +17,7 @@ import { fetchCatalog, getAllTasks, type Task } from '../features/servicos/catal
 import { useApi } from '../hooks/useApi'
 import { routes } from '../hooks/useHashRoute'
 import { firstName, formatPrice, greeting, normalize } from '../lib/format'
-import { contactMessage, openWhatsapp } from '../lib/whatsapp'
+import { contactMessage, formatPhone, openWhatsapp } from '../lib/whatsapp'
 
 type InicioProps = {
   isLoggedIn: boolean
@@ -32,6 +33,9 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [selectedPro, setSelectedPro] = useState<Professional | null>(null)
   const [noWhatsapp, setNoWhatsapp] = useState(false)
+  // Busca por nome e ordem da lista de profissionais do serviço aberto
+  const [proQuery, setProQuery] = useState('')
+  const [proSort, setProSort] = useState<ProSort>('reputacao')
 
   const dialogRef = useRef<HTMLDialogElement>(null)
   const catalog = useApi(fetchCatalog)
@@ -66,6 +70,7 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
   function openTask(task: Task) {
     setSelectedTask(task)
     setSelectedPro(null)
+    setProQuery('')
     dialogRef.current?.showModal()
   }
 
@@ -75,6 +80,16 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
   }
 
   const taskPros = pros.data ?? []
+  // Sem login, só o primeiro nome: a busca e a ordem usam o nome que está na tela
+  const shownName = (pro: Professional) => (isLoggedIn ? pro.name : firstName(pro.name))
+  // Sem login não há preço; a ordem por valor revelaria quem cobra menos
+  const sort = proSort === 'valor' && !isLoggedIn ? 'reputacao' : proSort
+  const listedPros = sortPros(
+    taskPros.filter((pro) => normalize(shownName(pro)).includes(normalize(proQuery.trim()))),
+    sort,
+    shownName,
+    (pro) => (selectedTask ? serviceFor(pro, selectedTask.title)?.price : null) ?? null,
+  )
   const selectedService = selectedTask && selectedPro ? serviceFor(selectedPro, selectedTask.title) : undefined
   const proFirstName = selectedPro ? firstName(selectedPro.name) : ''
   // Sem login, só o primeiro nome
@@ -119,6 +134,10 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
             onChange={(event) => setQuery(event.currentTarget.value)}
           />
         </div>
+      </header>
+
+      <main className="app-main">
+        <section className="banner" aria-label="Destaques" />
 
         {activeProfessions.length > 0 && (
           <div className="active-filters" aria-label="Filtros ativos">
@@ -139,10 +158,6 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
             </button>
           </div>
         )}
-      </header>
-
-      <main className="app-main">
-        <section className="banner" aria-label="Destaques" />
 
         <section aria-label="Profissões">
           {catalog.error && <LoadError message={catalog.error} onRetry={catalog.reload} />}
@@ -256,21 +271,41 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
 
             {!pros.loading && taskPros.length > 0 && (
               <>
-                <p className="sheet-hint">Ordenados pela reputação.</p>
+                <div className="pro-tools">
+                  <div className="search">
+                    <Search className="search-icon" size={17} aria-hidden="true" />
+                    <input
+                      type="search"
+                      aria-label="Procurar profissional por nome"
+                      placeholder="Procurar nome"
+                      value={proQuery}
+                      onChange={(event) => setProQuery(event.currentTarget.value)}
+                    />
+                  </div>
+                  <select
+                    className="pro-sort"
+                    aria-label="Ordenar por"
+                    value={sort}
+                    onChange={(event) => setProSort(event.currentTarget.value as ProSort)}
+                  >
+                    <option value="reputacao">Reputação</option>
+                    <option value="nome">Nome</option>
+                    <option value="valor" disabled={!isLoggedIn}>
+                      {isLoggedIn ? 'Menor valor' : 'Menor valor (entre para ver)'}
+                    </option>
+                  </select>
+                </div>
 
-                {!isLoggedIn && (
-                  <LoginBar
-                    message="Entre para ver os preços e falar com os profissionais."
-                    onLogin={onLogin}
-                  />
+                {listedPros.length === 0 && (
+                  <p className="sheet-hint">Nenhum profissional com esse nome.</p>
                 )}
 
-                <ul className="pro-list">
-                  {taskPros.map((pro) => {
+                <ul className="pro-list" hidden={listedPros.length === 0}>
+                  {listedPros.map((pro) => {
                     const service = serviceFor(pro, selectedTask.title)
                     const name = isLoggedIn ? pro.name : firstName(pro.name)
                     return (
-                      <li key={pro.id}>
+                      <li key={pro.id} className="pro-row">
                         <button type="button" className="pro" onClick={() => choosePro(pro)}>
                           <Avatar name={name} photo={pro.photo} />
                           <span className="pro-text">
@@ -289,10 +324,48 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
                             )}
                           </span>
                         </button>
+                        {/* Contato direto da lista. O número só vem do servidor para quem entrou;
+                            sem login, um número falso desfocado, como o preço, e o toque leva ao login. */}
+                        {isLoggedIn ? (
+                          pro.whatsapp && (
+                            <button
+                              type="button"
+                              className="pro-whatsapp"
+                              aria-label={`Falar com ${firstName(pro.name)} no WhatsApp`}
+                              onClick={() =>
+                                openWhatsapp(
+                                  pro.whatsapp!,
+                                  contactMessage(firstName(pro.name), selectedTask.title),
+                                )
+                              }
+                            >
+                              <WhatsappIcon />
+                              {formatPhone(pro.whatsapp)}
+                            </button>
+                          )
+                        ) : (
+                          <button type="button" className="pro-whatsapp" onClick={onLogin}>
+                            <WhatsappIcon />
+                            <span className="price-blur" aria-hidden="true">
+                              (62) 00000-0000
+                            </span>
+                            <span className="visually-hidden">WhatsApp visível após entrar</span>
+                          </button>
+                        )}
                       </li>
                     )
                   })}
                 </ul>
+
+                {/* Preso no rodapé da folha: continua à mão com a lista rolando */}
+                {!isLoggedIn && (
+                  <div className="sheet-login">
+                    <LoginBar
+                      message="Entre para ver os preços e falar com os profissionais."
+                      onLogin={onLogin}
+                    />
+                  </div>
+                )}
               </>
             )}
 
@@ -406,6 +479,24 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
       />
     </div>
   )
+}
+
+type ProSort = 'reputacao' | 'nome' | 'valor'
+
+// A lista chega do servidor já pela reputação; os empates das outras ordens mantêm essa ordem
+function sortPros(
+  pros: Professional[],
+  sort: ProSort,
+  nameOf: (pro: Professional) => string,
+  priceOf: (pro: Professional) => number | null,
+) {
+  if (sort === 'nome') return [...pros].sort((a, b) => nameOf(a).localeCompare(nameOf(b), 'pt-BR'))
+  if (sort === 'valor') {
+    // "A combinar" vai para o fim
+    const price = (pro: Professional) => priceOf(pro) ?? Number.POSITIVE_INFINITY
+    return [...pros].sort((a, b) => price(a) - price(b))
+  }
+  return pros
 }
 
 // Há preço informado (mesmo que escondido para quem não entrou)
