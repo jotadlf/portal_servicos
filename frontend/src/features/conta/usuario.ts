@@ -1,5 +1,6 @@
-// Contas do protótipo. Serão substituídas pelo Supabase Auth e pela tabela de perfis.
-import { addProfessional, getProfessional, updateProfessional } from '../profissionais/dados-exemplo'
+// Contas, agora gravadas no banco pela API. Senha e CPF ficam só no servidor.
+// TODO: trocar por Supabase Auth e a tabela de perfis.
+import { api, fileToDataUrl, getToken, setToken } from '../../lib/api'
 
 export type Address = {
   cep: string
@@ -14,8 +15,6 @@ export type Address = {
 export type Account = {
   id: string
   email: string
-  // Só no protótipo. No Supabase a senha nunca fica guardada no app.
-  password: string
   name: string
   // Só dígitos, com DDD
   phone: string
@@ -23,73 +22,16 @@ export type Account = {
   address: Address
   // Perfil público como prestador. Sem ele, a pessoa só contrata serviços.
   professionalId?: string
-  // Acesso à tela de administração.
-  // TODO: no Supabase, conferir o papel no servidor (RLS), não só esconder a tela.
+  // Acesso à administração; o servidor confere em cada chamada
   isAdmin?: boolean
 }
 
-const emptyAddress: Address = {
-  cep: '',
-  street: '',
-  number: '',
-  complement: '',
-  neighborhood: '',
-  city: '',
-  state: '',
-}
+type Session = { token: string; account: Account }
 
-// Usuários de teste (senha: teste123):
-// - carlos@exemplo.com: prestador desde o início (eletricista, com contatos e avaliações)
-// - beatriz@exemplo.com: só consumidora
-// - admin@exemplo.com: administração do portal
-const accounts: Account[] = [
-  {
-    id: 'u1',
-    email: 'carlos@exemplo.com',
-    password: 'teste123',
-    name: 'Carlos Henrique',
-    phone: '',
-    address: { ...emptyAddress, neighborhood: 'Setor Bueno', city: 'Goiânia', state: 'GO' },
-    professionalId: 'p1',
-  },
-  {
-    id: 'u2',
-    email: 'beatriz@exemplo.com',
-    password: 'teste123',
-    name: 'Beatriz Rocha',
-    phone: '',
-    address: { ...emptyAddress, neighborhood: 'Setor Marista', city: 'Goiânia', state: 'GO' },
-  },
-  {
-    id: 'u3',
-    email: 'admin@exemplo.com',
-    password: 'teste123',
-    name: 'Administração',
-    phone: '',
-    address: { ...emptyAddress },
-    isAdmin: true,
-  },
-]
-
-export function getAccounts() {
-  return accounts
-}
-
-function sameEmail(a: string, b: string) {
-  return a.trim().toLowerCase() === b.trim().toLowerCase()
-}
-
-export function getAccount(id: string) {
-  return accounts.find((account) => account.id === id)
-}
-
-// TODO: trocar por supabase.auth.signInWithPassword
-export function signIn(email: string, password: string) {
-  return accounts.find((account) => sameEmail(account.email, email) && account.password === password)
-}
-
-export function isEmailTaken(email: string) {
-  return accounts.some((account) => sameEmail(account.email, email))
+export async function signIn(email: string, password: string) {
+  const session = await api<Session>('POST', '/api/auth/entrar', { email, password })
+  setToken(session.token)
+  return session.account
 }
 
 type NewAccount = {
@@ -97,57 +39,42 @@ type NewAccount = {
   email: string
   password: string
   asProvider: boolean
+  cpf?: string
 }
 
-// TODO: trocar por supabase.auth.signUp
-export function createAccount({ name, email, password, asProvider }: NewAccount) {
-  const account: Account = {
-    id: `u${Date.now()}`,
-    email: email.trim().toLowerCase(),
-    password,
-    name: name.trim(),
-    phone: '',
-    address: { ...emptyAddress },
+export async function createAccount(data: NewAccount) {
+  const session = await api<Session>('POST', '/api/auth/cadastro', data)
+  setToken(session.token)
+  return session.account
+}
+
+export async function signOut() {
+  try {
+    await api('POST', '/api/auth/sair')
+  } finally {
+    setToken(undefined)
   }
-  accounts.push(account)
-  if (asProvider) becomeProvider(account.id)
-  return account
+}
+
+// Conta da sessão guardada nesta aba, se ainda valer
+export async function currentAccount() {
+  if (!getToken()) return undefined
+  try {
+    return await api<Account>('GET', '/api/auth/eu')
+  } catch {
+    return undefined
+  }
+}
+
+export function updateAccount(changes: Pick<Account, 'name' | 'phone' | 'address'>) {
+  return api<Account>('PATCH', '/api/conta', changes)
+}
+
+export async function uploadPhoto(file: File) {
+  return api<Account>('POST', '/api/conta/foto', { photo: await fileToDataUrl(file) })
 }
 
 // Qualquer pessoa pode passar a oferecer serviços a qualquer momento
-export function becomeProvider(accountId: string) {
-  const account = getAccount(accountId)
-  if (!account || account.professionalId) return
-  const professional = addProfessional({
-    name: account.name,
-    neighborhood: account.address.neighborhood,
-    whatsapp: account.phone || undefined,
-    photo: account.photo,
-  })
-  account.professionalId = professional.id
-}
-
-// Protótipo: altera só em memória, até recarregar a página.
-// TODO: gravar no Supabase.
-export function updateAccount(
-  accountId: string,
-  changes: Partial<Omit<Account, 'id' | 'email' | 'password' | 'professionalId'>>,
-) {
-  const account = getAccount(accountId)
-  if (!account) return
-  Object.assign(account, changes)
-
-  // O perfil público usa os dados do Perfil; só o bairro do endereço fica visível
-  if (account.professionalId) {
-    updateProfessional(account.professionalId, {
-      name: account.name,
-      whatsapp: account.phone || undefined,
-      neighborhood: account.address.neighborhood,
-      photo: account.photo,
-    })
-  }
-}
-
-export function getAccountProfessional(account: Account) {
-  return account.professionalId ? getProfessional(account.professionalId) : undefined
+export function becomeProvider() {
+  return api<Account>('POST', '/api/conta/prestador')
 }

@@ -1,3 +1,4 @@
+// Modalidades vêm do banco; aqui fica só a parte visual (ícone e imagem) de cada uma.
 import {
   BrickWall,
   Droplets,
@@ -11,7 +12,7 @@ import {
   Zap,
   type LucideIcon,
 } from 'lucide-react'
-import { normalize } from '../../lib/format'
+import { api, fileToDataUrl } from '../../lib/api'
 import eletricistaImg from '../../assets/profissoes/eletricista.png'
 import faxineiraImg from '../../assets/profissoes/faxineira.png'
 import diaristaImg from '../../assets/profissoes/diarista.svg'
@@ -32,101 +33,53 @@ export type Profession = {
   tasks: string[]
 }
 
-export const professions: Profession[] = [
-  {
-    id: 'eletricista',
-    image: eletricistaImg,
-    name: 'Eletricista',
-    icon: Zap,
-    tasks: ['Instalar chuveiro', 'Trocar tomada ou interruptor', 'Revisar quadro de energia'],
-  },
-  {
-    id: 'faxineira',
-    image: faxineiraImg,
-    name: 'Faxineira',
-    icon: SprayCan,
-    tasks: ['Faxina completa', 'Limpeza pós-obra', 'Limpeza de vidros'],
-  },
-  {
-    id: 'diarista',
-    image: diaristaImg,
-    name: 'Diarista',
-    icon: Shirt,
-    tasks: ['Diária de limpeza', 'Passar roupa', 'Organizar armários'],
-  },
-  {
-    id: 'encanador',
-    image: encanadorImg,
-    name: 'Encanador',
-    icon: Droplets,
-    tasks: ['Consertar vazamento', 'Trocar torneira', 'Desentupir pia ou ralo'],
-  },
-  {
-    id: 'pedreiro',
-    image: pedreiroImg,
-    name: 'Pedreiro',
-    icon: BrickWall,
-    tasks: ['Assentar piso', 'Rebocar parede', 'Pequena reforma'],
-  },
-  {
-    id: 'pintor',
-    image: pintorImg,
-    name: 'Pintor',
-    icon: PaintRoller,
-    tasks: ['Pintar cômodo', 'Pintar portão', 'Aplicar textura'],
-  },
-  {
-    id: 'montador',
-    image: montadorImg,
-    name: 'Montador',
-    icon: Hammer,
-    tasks: ['Montar guarda-roupa', 'Instalar painel de TV', 'Montar cozinha'],
-  },
-  {
-    id: 'jardineiro',
-    image: jardineiroImg,
-    name: 'Jardineiro',
-    icon: Sprout,
-    tasks: ['Podar árvores', 'Plantar grama', 'Limpar lote'],
-  },
-  {
-    id: 'chaveiro',
-    image: chaveiroImg,
-    name: 'Chaveiro',
-    icon: KeyRound,
-    tasks: ['Abrir porta', 'Trocar fechadura', 'Fazer cópia de chave'],
-  },
-]
+// Modalidades de fábrica; as criadas na administração usam a ferramenta e a imagem enviada
+const visuals: Record<string, { icon: LucideIcon; image: string }> = {
+  eletricista: { icon: Zap, image: eletricistaImg },
+  faxineira: { icon: SprayCan, image: faxineiraImg },
+  diarista: { icon: Shirt, image: diaristaImg },
+  encanador: { icon: Droplets, image: encanadorImg },
+  pedreiro: { icon: BrickWall, image: pedreiroImg },
+  pintor: { icon: PaintRoller, image: pintorImg },
+  montador: { icon: Hammer, image: montadorImg },
+  jardineiro: { icon: Sprout, image: jardineiroImg },
+  chaveiro: { icon: KeyRound, image: chaveiroImg },
+}
+
+type ProfessionData = { id: string; name: string; tasks: string[]; image?: string }
+
+function withVisual(data: ProfessionData): Profession {
+  const visual = visuals[data.id]
+  return { ...data, icon: visual?.icon ?? Wrench, image: data.image ?? visual?.image }
+}
+
+export async function fetchCatalog() {
+  return (await api<ProfessionData[]>('GET', '/api/catalogo')).map(withVisual)
+}
 
 export type Task = { title: string; profession: Profession }
 
-export function getAllTasks(): Task[] {
+export function getAllTasks(professions: Profession[]): Task[] {
   return professions.flatMap((profession) =>
     profession.tasks.map((title) => ({ title, profession })),
   )
 }
 
-function slug(text: string) {
-  return normalize(text)
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-}
-
-// Protótipo: altera só em memória. TODO: tabela de modalidades no Supabase.
-export function addProfession({ name, tasks, image }: Pick<Profession, 'name' | 'tasks' | 'image'>) {
-  const base = slug(name) || 'modalidade'
-  let id = base
-  for (let n = 2; findProfession(id); n++) id = `${base}-${n}`
-  const profession: Profession = { id, name: name.trim(), icon: Wrench, image, tasks }
-  professions.push(profession)
-  return profession
-}
-
-export function removeProfession(id: string) {
-  const index = professions.findIndex((profession) => profession.id === id)
-  if (index >= 0) professions.splice(index, 1)
-}
-
-export function findProfession(id: string) {
+export function findProfession(professions: Profession[], id: string) {
   return professions.find((profession) => profession.id === id)
+}
+
+// Só a administração consegue; o servidor confere
+export async function addProfession({ name, tasks, image }: { name: string; tasks: string[]; image?: File }) {
+  const data = await api<ProfessionData>('POST', '/api/catalogo', {
+    name,
+    tasks,
+    image: image ? await fileToDataUrl(image) : undefined,
+  })
+  return withVisual(data)
+}
+
+// Os serviços da modalidade saem junto, de todos os perfis
+export function removeProfession(id: string) {
+  return api('DELETE', `/api/catalogo/${encodeURIComponent(id)}`)
 }

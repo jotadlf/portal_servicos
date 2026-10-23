@@ -1,5 +1,19 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fetchAddress, formatCep } from './cep'
+import { fetchAddress, formatCep, isValidUf } from './cep'
+
+describe('isValidUf', () => {
+  it('aceita as siglas dos estados, em qualquer caixa', () => {
+    expect(isValidUf('GO')).toBe(true)
+    expect(isValidUf('df')).toBe(true)
+    expect(isValidUf(' sp ')).toBe(true)
+  })
+
+  it('recusa siglas que não existem', () => {
+    expect(isValidUf('XY')).toBe(false)
+    expect(isValidUf('G')).toBe(false)
+    expect(isValidUf('')).toBe(false)
+  })
+})
 
 describe('formatCep', () => {
   it('aplica a máscara 00000-000', () => {

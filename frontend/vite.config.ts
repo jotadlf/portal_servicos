@@ -4,7 +4,15 @@ import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  // A API local (server/, SQLite) roda em outra porta; o app a chama em /api, na mesma origem
+  server: {
+    proxy: {
+      '/api': `http://127.0.0.1:${process.env.API_PORT ?? 3001}`,
+    },
+  },
   test: {
+    // e2e/ é do Playwright, com o próprio comando
+    exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
     // Navegador simulado para os testes de tela
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],

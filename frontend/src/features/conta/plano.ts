@@ -1,5 +1,6 @@
 // Plano de prestador: usar o app é grátis; aparecer nas buscas é pago.
-// Os valores são editados na tela de administração.
+// Os valores vêm do banco e são editados na tela de administração.
+// Este arquivo só tem cálculos (sem imports): o servidor usa as mesmas regras.
 
 export type PaymentGateway = 'mercadopago' | 'stripe' | 'pagseguro'
 
@@ -18,29 +19,11 @@ export type PlanSettings = {
   cardEnabled: boolean
 }
 
-// Protótipo: em memória. TODO: tabela de configurações no Supabase, editável só por admin.
-const settings: PlanSettings = {
-  monthlyPrice: 19.9,
-  semiannualPrice: 99.9,
-  trialDays: 15,
-  gateway: 'mercadopago',
-  pixEnabled: true,
-  cardEnabled: true,
-}
-
-export function getPlanSettings() {
-  return settings
-}
-
-export function updatePlanSettings(changes: Partial<PlanSettings>) {
-  Object.assign(settings, changes)
-}
-
 export function formatMoney(value: number) {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-export function planPriceLabel() {
+export function planPriceLabel(settings: PlanSettings) {
   return formatMoney(settings.monthlyPrice)
 }
 
@@ -57,7 +40,7 @@ export type Plan = {
   every: string
 }
 
-export function getPlans(): Plan[] {
+export function getPlans(settings: PlanSettings): Plan[] {
   return [
     {
       id: 'mensal',
@@ -78,13 +61,13 @@ export function getPlans(): Plan[] {
   ]
 }
 
-export function findPlan(id: PlanId) {
-  const plans = getPlans()
+export function findPlan(settings: PlanSettings, id: PlanId) {
+  const plans = getPlans(settings)
   return plans.find((plan) => plan.id === id) ?? plans[0]
 }
 
 // Quanto o plano economiza em relação a pagar o mensal pelo mesmo período
-export function planSavings(plan: Plan) {
+export function planSavings(settings: PlanSettings, plan: Plan) {
   const full = settings.monthlyPrice * plan.months
   return { amount: full - plan.price, percent: Math.round((1 - plan.price / full) * 100) }
 }
@@ -95,9 +78,14 @@ export function monthlyValue(plan: Plan) {
 }
 
 // Data (AAAA-MM-DD) em que o período grátis termina, contando a partir de hoje
-export function trialEndDate(from = new Date()) {
+export function trialEndDate(settings: PlanSettings, from = new Date()) {
   const end = new Date(from)
   end.setDate(end.getDate() + settings.trialDays)
+  return isoDate(end)
+}
+
+// AAAA-MM-DD no horário local (toISOString usaria UTC e poderia virar o dia)
+export function isoDate(date: Date) {
   const pad = (n: number) => String(n).padStart(2, '0')
-  return `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}`
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }

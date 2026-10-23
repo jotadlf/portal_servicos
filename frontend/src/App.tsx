@@ -1,9 +1,11 @@
-import { useState } from 'react'
-import { getAccount, type Account } from './features/conta/usuario'
+import { useEffect, useState } from 'react'
+import { Loading } from './components/Status'
+import { currentAccount, signOut, type Account } from './features/conta/usuario'
 import { routes, useHashRoute } from './hooks/useHashRoute'
+import { SESSION_EXPIRED } from './lib/api'
 import { Admin } from './pages/Admin'
 import { Conta } from './pages/Conta'
-import { Entrar } from './pages/Entrar'
+import { AlreadySignedIn, Entrar } from './pages/Entrar'
 import { Inicio } from './pages/Inicio'
 import { PerfilPrestador } from './pages/PerfilPrestador'
 import { Publicar } from './pages/Publicar'
@@ -11,13 +13,31 @@ import { Servicos } from './pages/Servicos'
 
 function App() {
   const route = useHashRoute()
-  // TODO: trocar pela sessão do Supabase Auth. Por enquanto a sessão vive só nesta aba.
-  const [accountId, setAccountId] = useState<string | null>(null)
+  // undefined = ainda conferindo a sessão guardada nesta aba
+  const [account, setAccount] = useState<Account | null | undefined>(undefined)
   // Página para onde voltar depois de entrar
   const [returnTo, setReturnTo] = useState<string>(routes.inicio)
 
-  const account = accountId ? getAccount(accountId) : undefined
-  const isLoggedIn = account != null
+  useEffect(() => {
+    currentAccount().then((found) => setAccount(found ?? null))
+    // Sessão vencida no meio do uso: volta a mostrar as telas como visitante
+    const expired = () => setAccount(null)
+    window.addEventListener(SESSION_EXPIRED, expired)
+    return () => window.removeEventListener(SESSION_EXPIRED, expired)
+  }, [])
+
+  if (account === undefined) {
+    return (
+      <div className="app">
+        <main className="page">
+          <Loading />
+        </main>
+      </div>
+    )
+  }
+
+  const signedIn = account ?? undefined
+  const isLoggedIn = signedIn !== undefined
 
   function login() {
     const current = window.location.hash
@@ -25,46 +45,52 @@ function App() {
     window.location.hash = routes.entrar
   }
 
-  function handleSignedIn(signedIn: Account, next?: string) {
-    setAccountId(signedIn.id)
+  function handleSignedIn(next: Account, nextRoute?: string) {
+    setAccount(next)
     // Quem administra cai direto no painel, se não estava indo para outra página
-    const fallback = signedIn.isAdmin && returnTo === routes.inicio ? routes.admin : returnTo
-    window.location.hash = next ?? fallback
+    const fallback = next.isAdmin && returnTo === routes.inicio ? routes.admin : returnTo
+    window.location.hash = nextRoute ?? fallback
     setReturnTo(routes.inicio)
   }
 
-  const logout = () => setAccountId(null)
+  function logout() {
+    setAccount(null)
+    signOut().catch(() => {})
+  }
 
   if (route.name === 'entrar') {
+    // Voltar pelo navegador depois de entrar não mostra o formulário de novo
+    if (signedIn) return <AlreadySignedIn name={signedIn.name} />
     return <Entrar mode={route.mode} onSignedIn={handleSignedIn} />
   }
   if (route.name === 'perfil') {
     return (
       <PerfilPrestador
+        key={`${route.id}-${signedIn?.id}`}
         id={route.id}
         isLoggedIn={isLoggedIn}
-        isOwner={account?.professionalId === route.id}
         onLogin={login}
       />
     )
   }
   if (route.name === 'servicos') {
-    return <Servicos key={account?.id} account={account} onLogin={login} />
+    return <Servicos key={signedIn?.id} account={signedIn} onLogin={login} onAccountChange={setAccount} />
   }
   if (route.name === 'admin') {
-    return <Admin account={account} onLogin={login} />
+    return <Admin account={signedIn} onLogin={login} />
   }
   if (route.name === 'publicar') {
-    return <Publicar account={account} onLogin={login} />
+    return <Publicar account={signedIn} onLogin={login} />
   }
   if (route.name === 'conta') {
-    return <Conta account={account} onLogin={login} onLogout={logout} />
+    return <Conta account={signedIn} onLogin={login} onLogout={logout} onAccountChange={setAccount} />
   }
   return (
     <Inicio
+      key={signedIn?.id}
       isLoggedIn={isLoggedIn}
-      isAdmin={account?.isAdmin ?? false}
-      userName={account?.name ?? ''}
+      isAdmin={signedIn?.isAdmin ?? false}
+      userName={signedIn?.name ?? ''}
       onLogin={login}
       onLogout={logout}
     />

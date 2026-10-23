@@ -1,42 +1,63 @@
-import type { PlanId } from '../conta/plano'
+// Dados de exemplo gravados no banco na primeira vez que ele é criado.
+// Saíram dos antigos módulos em memória (dados-exemplo.ts e catalogo.ts).
 
-// Dados de exemplo para o protótipo. Serão substituídos pela tabela de
-// profissionais no Supabase.
-
-// Serviço oferecido e o preço médio informado pelo profissional (em reais).
-// Preço null = o profissional não informou; o valor sai só na conversa.
-export type OfferedService = {
-  professionId: string
-  name: string
-  price: number | null
-}
-
-export type Professional = {
+export type SampleProfessional = {
   id: string
   name: string
-  // Uma pessoa pode oferecer serviços de várias profissões
-  services: OfferedService[]
-  photo?: string
-  // Rascunho não aparece nas buscas; publicar ativa o plano de prestador
-  status: 'rascunho' | 'publicado'
-  // Fim do período grátis (AAAA-MM-DD), definido ao publicar
-  trialEndsAt?: string
-  plan?: PlanId
+  professionId: string
+  // Preço médio por serviço; null = a combinar
+  prices: Record<string, number | null>
   rating: number
   reviews: number
   neighborhood: string
   about?: string
-  // Só dígitos, com DDD. Nos dados de exemplo fica vazio de propósito:
-  // número inventado poderia levar o cliente ao WhatsApp de um desconhecido.
-  whatsapp?: string
 }
 
-type SampleRow = Omit<Professional, 'services' | 'status'> & {
-  professionId: string
-  prices: Record<string, number | null>
+export type SampleReview = {
+  id: string
+  professionalId: string
+  author: string
+  rating: number
+  comment: string
+  date: string
 }
 
-const sampleRows: SampleRow[] = [
+export type SampleContact = {
+  id: string
+  professionalId: string
+  client: string
+  task: string
+  message: string
+  neighborhood: string
+  date: string
+  answered: boolean
+}
+
+// Senha de todas as contas de teste
+export const SAMPLE_PASSWORD = 'teste123'
+
+// - carlos@exemplo.com: prestador desde o início (eletricista, com contatos e avaliações)
+// - beatriz@exemplo.com: só consumidora
+// - admin@exemplo.com: administração do portal
+export const sampleAccounts = [
+  { id: 'u1', email: 'carlos@exemplo.com', name: 'Carlos Henrique', neighborhood: 'Setor Bueno', city: 'Goiânia', state: 'GO', professionalId: 'p1', isAdmin: false },
+  { id: 'u2', email: 'beatriz@exemplo.com', name: 'Beatriz Rocha', neighborhood: 'Setor Marista', city: 'Goiânia', state: 'GO', isAdmin: false },
+  { id: 'u3', email: 'admin@exemplo.com', name: 'Administração', neighborhood: '', city: '', state: '', isAdmin: true },
+]
+
+export const sampleProfessions = [
+  { id: 'eletricista', name: 'Eletricista', tasks: ['Instalar chuveiro', 'Trocar tomada ou interruptor', 'Revisar quadro de energia'] },
+  { id: 'faxineira', name: 'Faxineira', tasks: ['Faxina completa', 'Limpeza pós-obra', 'Limpeza de vidros'] },
+  { id: 'diarista', name: 'Diarista', tasks: ['Diária de limpeza', 'Passar roupa', 'Organizar armários'] },
+  { id: 'encanador', name: 'Encanador', tasks: ['Consertar vazamento', 'Trocar torneira', 'Desentupir pia ou ralo'] },
+  { id: 'pedreiro', name: 'Pedreiro', tasks: ['Assentar piso', 'Rebocar parede', 'Pequena reforma'] },
+  { id: 'pintor', name: 'Pintor', tasks: ['Pintar cômodo', 'Pintar portão', 'Aplicar textura'] },
+  { id: 'montador', name: 'Montador', tasks: ['Montar guarda-roupa', 'Instalar painel de TV', 'Montar cozinha'] },
+  { id: 'jardineiro', name: 'Jardineiro', tasks: ['Podar árvores', 'Plantar grama', 'Limpar lote'] },
+  { id: 'chaveiro', name: 'Chaveiro', tasks: ['Abrir porta', 'Trocar fechadura', 'Fazer cópia de chave'] },
+]
+
+export const sampleProfessionals: SampleProfessional[] = [
   { id: 'p1', name: 'Carlos Henrique', professionId: 'eletricista', prices: { 'Instalar chuveiro': 150, 'Trocar tomada ou interruptor': 60, 'Revisar quadro de energia': 250 }, rating: 4.9, reviews: 132, neighborhood: 'Setor Bueno', about: 'Eletricista há 15 anos, atendo casas e apartamentos na região sul. Levo o material básico e deixo tudo limpo no final.' },
   { id: 'p2', name: 'Marcos Vinícius', professionId: 'eletricista', prices: { 'Instalar chuveiro': 120, 'Trocar tomada ou interruptor': 50 }, rating: 4.7, reviews: 58, neighborhood: 'Jardim América' },
   { id: 'p3', name: 'Rafael Souza', professionId: 'eletricista', prices: { 'Instalar chuveiro': null, 'Trocar tomada ou interruptor': 70, 'Revisar quadro de energia': null }, rating: 5, reviews: 3, neighborhood: 'Setor Oeste' },
@@ -63,84 +84,7 @@ const sampleRows: SampleRow[] = [
   { id: 'p24', name: 'Mateus Freitas', professionId: 'chaveiro', prices: { 'Fazer cópia de chave': 12, 'Trocar fechadura': 140 }, rating: 4.4, reviews: 76, neighborhood: 'Setor Sul' },
 ]
 
-export const professionals: Professional[] = sampleRows.map(({ professionId, prices, ...rest }) => ({
-  ...rest,
-  status: 'publicado',
-  services: Object.entries(prices).map(([name, price]) => ({ professionId, name, price })),
-}))
-
-export function priceFor(pro: Professional, task: string) {
-  return pro.services.find((service) => service.name === task)?.price ?? null
-}
-
-export function professionIdsOf(pro: Professional) {
-  return [...new Set(pro.services.map((service) => service.professionId))]
-}
-
-// Média bayesiana: poucas avaliações puxam a nota para a média geral,
-// para que 5,0 com 3 avaliações não passe na frente de 4,9 com 132.
-const PRIOR_REVIEWS = 10
-const PRIOR_RATING = 4
-
-export function reputation({ rating, reviews }: Professional) {
-  return (rating * reviews + PRIOR_RATING * PRIOR_REVIEWS) / (reviews + PRIOR_REVIEWS)
-}
-
-export function professionalsFor(professionId: string, task: string) {
-  return professionals
-    .filter((p) =>
-      p.status === 'publicado' &&
-      p.services.some((service) => service.professionId === professionId && service.name === task),
-    )
-    .sort((a, b) => reputation(b) - reputation(a))
-}
-
-export function getProfessional(id: string) {
-  return professionals.find((p) => p.id === id)
-}
-
-// Protótipo: altera o perfil só em memória, até recarregar a página.
-// TODO: gravar no Supabase.
-export function updateProfessional(id: string, changes: Partial<Omit<Professional, 'id'>>) {
-  const professional = getProfessional(id)
-  if (professional) Object.assign(professional, changes)
-}
-
-// Quando uma modalidade sai do catálogo, os serviços dela saem dos perfis
-export function removeServicesOf(professionId: string) {
-  for (const professional of professionals) {
-    professional.services = professional.services.filter(
-      (service) => service.professionId !== professionId,
-    )
-  }
-}
-
-// Prestador novo: começa sem serviços e sem avaliações
-export function addProfessional(
-  data: Pick<Professional, 'name' | 'neighborhood' | 'whatsapp' | 'photo'>,
-) {
-  const professional: Professional = {
-    ...data,
-    id: `p${Date.now()}`,
-    services: [],
-    status: 'rascunho',
-    rating: 0,
-    reviews: 0,
-  }
-  professionals.push(professional)
-  return professional
-}
-
-export type Review = {
-  id: string
-  professionalId: string
-  author: string
-  rating: number
-  comment: string
-  date: string
-}
-
-export const reviews: Review[] = [
+export const sampleReviews: SampleReview[] = [
   { id: 'r1', professionalId: 'p1', author: 'Fernanda', rating: 5, comment: 'Instalou o chuveiro rapidinho e explicou tudo. Muito educado.', date: '2026-10-12' },
   { id: 'r2', professionalId: 'p1', author: 'Roberto', rating: 5, comment: 'Chegou no horário combinado e o preço foi o que tinha falado.', date: '2026-10-03' },
   { id: 'r3', professionalId: 'p1', author: 'Juliana', rating: 4, comment: 'Bom serviço, só demorou um pouco para responder.', date: '2026-09-21' },
@@ -150,28 +94,18 @@ export const reviews: Review[] = [
   { id: 'r7', professionalId: 'p23', author: 'Carla', rating: 5, comment: 'Abriu a porta em dez minutos, de madrugada.', date: '2026-10-15' },
 ]
 
-export function reviewsFor(professionalId: string) {
-  return reviews.filter((review) => review.professionalId === professionalId)
-}
-
-export type ContactRequest = {
-  id: string
-  professionalId: string
-  client: string
-  task: string
-  message: string
-  neighborhood: string
-  date: string
-  answered: boolean
-}
-
-export const contactRequests: ContactRequest[] = [
+export const sampleContacts: SampleContact[] = [
   { id: 'c1', professionalId: 'p1', client: 'Beatriz', task: 'Instalar chuveiro', message: 'Chuveiro novo de 220V, o antigo queimou.', neighborhood: 'Setor Bueno', date: '2026-10-19', answered: false },
   { id: 'c2', professionalId: 'p1', client: 'André', task: 'Revisar quadro de energia', message: 'O disjuntor desarma quando ligo o forno.', neighborhood: 'Setor Marista', date: '2026-10-18', answered: false },
   { id: 'c3', professionalId: 'p1', client: 'Sônia', task: 'Trocar tomada ou interruptor', message: 'São 4 tomadas na sala e 2 interruptores.', neighborhood: 'Setor Oeste', date: '2026-10-15', answered: true },
   { id: 'c4', professionalId: 'p1', client: 'Gabriel', task: 'Instalar chuveiro', message: '', neighborhood: 'Jardim América', date: '2026-10-11', answered: true },
 ]
 
-export function contactsFor(professionalId: string) {
-  return contactRequests.filter((contact) => contact.professionalId === professionalId)
-}
+export const samplePlanSettings = {
+  monthlyPrice: 19.9,
+  semiannualPrice: 99.9,
+  trialDays: 15,
+  gateway: 'mercadopago',
+  pixEnabled: true,
+  cardEnabled: true,
+} as const

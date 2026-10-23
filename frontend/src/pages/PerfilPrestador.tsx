@@ -4,12 +4,14 @@ import { BlurredPrice, LoginBar } from '../components/LoginBar'
 import { PageBar } from '../components/PageBar'
 import { Rating } from '../components/Rating'
 import { Avatar } from '../components/Avatar'
+import { LoadError, Loading } from '../components/Status'
 import {
-  getProfessional,
+  fetchProfessional,
+  fetchReviews,
   professionIdsOf,
-  reviewsFor,
-} from '../features/profissionais/dados-exemplo'
-import { findProfession } from '../features/servicos/catalogo'
+} from '../features/profissionais/prestadores'
+import { fetchCatalog, findProfession } from '../features/servicos/catalogo'
+import { useApi } from '../hooks/useApi'
 import { routes } from '../hooks/useHashRoute'
 import { firstName, formatDate, formatPrice } from '../lib/format'
 import { contactMessage, openWhatsapp } from '../lib/whatsapp'
@@ -17,38 +19,53 @@ import { contactMessage, openWhatsapp } from '../lib/whatsapp'
 type PerfilPrestadorProps = {
   id: string
   isLoggedIn: boolean
-  // Rascunho só aparece para o próprio prestador
-  isOwner: boolean
   onLogin: () => void
 }
 
-export function PerfilPrestador({ id, isLoggedIn, isOwner, onLogin }: PerfilPrestadorProps) {
+// Rascunho só aparece para o próprio prestador: quem decide é o servidor
+export function PerfilPrestador({ id, isLoggedIn, onLogin }: PerfilPrestadorProps) {
   const [noWhatsapp, setNoWhatsapp] = useState(false)
-  const found = getProfessional(id)
-  const pro = found && (found.status === 'publicado' || isOwner) ? found : undefined
+  const profile = useApi(
+    () => Promise.all([fetchProfessional(id), fetchReviews(id), fetchCatalog()]),
+    id,
+  )
 
-  if (!pro) {
+  if (profile.loading && !profile.data) {
     return (
       <div className="app">
         <PageBar title="Prestador" />
         <main className="page">
-          <div className="empty">
-            <p>Não encontramos este prestador.</p>
-            <a className="clear-filters" href={routes.inicio}>
-              Voltar para o início
-            </a>
-          </div>
+          <Loading />
         </main>
       </div>
     )
   }
 
-  const professionNames = professionIdsOf(pro).map((id) => findProfession(id)?.name ?? id)
+  const notFound = profile.status === 404
+  if (!profile.data) {
+    return (
+      <div className="app">
+        <PageBar title="Prestador" />
+        <main className="page">
+          {notFound ? (
+            <div className="empty">
+              <p>Não encontramos este prestador.</p>
+              <a className="clear-filters" href={routes.inicio}>
+                Voltar para o início
+              </a>
+            </div>
+          ) : (
+            <LoadError message={profile.error ?? ''} onRetry={profile.reload} />
+          )}
+        </main>
+      </div>
+    )
+  }
+
+  const [pro, comments, professions] = profile.data
+  const professionNames = professionIdsOf(pro).map((pid) => findProfession(professions, pid)?.name ?? pid)
   const proFirstName = firstName(pro.name)
-  // Sem login, só o primeiro nome
-  const name = isLoggedIn ? pro.name : proFirstName
   const services = pro.services
-  const comments = reviewsFor(pro.id)
 
   return (
     <div className="app">
@@ -62,9 +79,9 @@ export function PerfilPrestador({ id, isLoggedIn, isOwner, onLogin }: PerfilPres
           </p>
         )}
         <section className="profile profile-page">
-          <Avatar name={name} photo={pro.photo} large />
+          <Avatar name={pro.name} photo={pro.photo} large />
           <div>
-            <h1>{name}</h1>
+            <h1>{pro.name}</h1>
             <p className="sheet-profession">
               {new Intl.ListFormat('pt-BR').format(professionNames)}
             </p>
@@ -88,16 +105,21 @@ export function PerfilPrestador({ id, isLoggedIn, isOwner, onLogin }: PerfilPres
         <section className="page-section" aria-labelledby="servicos-title">
           <h2 id="servicos-title">Serviços</h2>
           <ul className="line-list">
-            {services.map(({ professionId, name: task, price }) => (
+            {services.map(({ professionId, name: task, price, hidden }) => (
               <li key={`${professionId}-${task}`} className="line">
                 <span>{task}</span>
                 <span className="pro-price">
-                  {price == null ? (
+                  {hidden ? (
+                    <>
+                      <small>média</small>
+                      <BlurredPrice />
+                    </>
+                  ) : price == null ? (
                     <small>a combinar</small>
                   ) : (
                     <>
                       <small>média</small>
-                      {isLoggedIn ? formatPrice(price) : <BlurredPrice />}
+                      {formatPrice(price)}
                     </>
                   )}
                 </span>
@@ -146,7 +168,7 @@ export function PerfilPrestador({ id, isLoggedIn, isOwner, onLogin }: PerfilPres
           disabled={!isLoggedIn}
           aria-describedby={isLoggedIn ? undefined : 'contact-locked'}
           onClick={() => {
-            // TODO: registrar o contato no Supabase para aparecer em "Contatos" do prestador.
+            // TODO: registrar o contato no banco para aparecer em "Contatos" do prestador.
             if (pro.whatsapp) openWhatsapp(pro.whatsapp, contactMessage(proFirstName))
             else setNoWhatsapp(true)
           }}

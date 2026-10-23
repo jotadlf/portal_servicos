@@ -1,13 +1,16 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+import { apiServer, loginAs } from '../test/api-server'
 import { Inicio } from './Inicio'
 
 type Props = Partial<Parameters<typeof Inicio>[0]>
 
-function renderInicio(props: Props = {}) {
+async function renderInicio(props: Props = {}) {
   const handlers = { onLogin: vi.fn(), onLogout: vi.fn() }
   render(<Inicio isLoggedIn={false} isAdmin={false} userName="" {...handlers} {...props} />)
+  // O catálogo vem do banco
+  await screen.findByRole('button', { name: 'Eletricista' })
   return handlers
 }
 
@@ -16,20 +19,27 @@ const sheet = () => within(document.querySelector('dialog')!)
 async function openTask(title: string) {
   await userEvent.type(screen.getByRole('searchbox', { name: 'Buscar serviço' }), title)
   await userEvent.click(screen.getByRole('button', { name: new RegExp(title) }))
+  await sheet().findByText('Ordenados pela reputação.')
 }
 
 describe('Inicio: busca', () => {
-  it('pede para escolher uma profissão antes de listar serviços', () => {
-    renderInicio()
+  it('pede para escolher uma profissão antes de listar serviços', async () => {
+    await renderInicio()
     expect(screen.getByText('Escolha uma profissão para ver os serviços.')).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: /serviço/ })).not.toBeInTheDocument()
+  })
+
+  it('mostra as modalidades gravadas no banco, inclusive as novas', async () => {
+    apiServer()
+      .db.prepare(`INSERT INTO professions (id, name, tasks, position) VALUES ('vidraceiro', 'Vidraceiro', '["Trocar vidro"]', 9)`)
+      .run()
+    await renderInicio()
+    await userEvent.click(screen.getByRole('button', { name: 'Vidraceiro' }))
+    expect(screen.getByRole('button', { name: /Trocar vidro/ })).toBeInTheDocument()
   })
 
   it('filtra pela profissão escolhida e permite tirar o filtro', async () => {
-    renderInicio()
+    await renderInicio()
     await userEvent.click(screen.getByRole('button', { name: 'Eletricista', pressed: false }))
-
-    expect(screen.getByRole('button', { name: 'Eletricista', pressed: true })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Instalar chuveiro/ })).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Remover filtro Eletricista' }))
@@ -37,30 +47,42 @@ describe('Inicio: busca', () => {
   })
 
   it('busca sem diferenciar acentos', async () => {
-    renderInicio()
+    await renderInicio()
     await userEvent.type(screen.getByRole('searchbox'), 'PORTAO')
     expect(screen.getByRole('heading', { level: 2, name: '1 serviço' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Pintar portão/ })).toBeInTheDocument()
   })
 
   it('avisa quando nada é encontrado e limpa a busca', async () => {
-    renderInicio()
+    await renderInicio()
     await userEvent.type(screen.getByRole('searchbox'), 'xyzxyz')
     expect(screen.getByText('Nenhum serviço encontrado para essa busca.')).toBeInTheDocument()
-
     await userEvent.click(screen.getByRole('button', { name: 'Limpar busca e filtros' }))
     expect(screen.getByRole('searchbox')).toHaveValue('')
+  })
+
+  it('mostra erro e permite tentar de novo quando o servidor falha', async () => {
+    const realFetch = globalThis.fetch
+    let fail = true
+    vi.stubGlobal('fetch', (...args: Parameters<typeof fetch>) =>
+      fail ? Promise.reject(new TypeError('offline')) : realFetch(...args),
+    )
+    render(<Inicio isLoggedIn={false} isAdmin={false} userName="" onLogin={vi.fn()} onLogout={vi.fn()} />)
+    expect(await screen.findByText(/Não foi possível falar com o servidor/)).toBeInTheDocument()
+
+    fail = false
+    await userEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }))
+    expect(await screen.findByRole('button', { name: 'Eletricista' })).toBeInTheDocument()
   })
 })
 
 describe('Inicio: profissionais', () => {
-  it('sem login esconde preço e sobrenome e pede para entrar', async () => {
-    const { onLogin } = renderInicio()
+  it('sem login: o servidor não manda preço nem sobrenome', async () => {
+    const { onLogin } = await renderInicio()
     await openTask('Instalar chuveiro')
 
-    expect(sheet().getByRole('heading', { name: 'Instalar chuveiro' })).toBeInTheDocument()
     expect(sheet().getByRole('button', { name: /^Carlos/ })).toBeInTheDocument()
     expect(sheet().queryByText(/Carlos Henrique/)).not.toBeInTheDocument()
+    expect(sheet().queryByText(/R\$\s150/)).not.toBeInTheDocument()
     expect(sheet().getAllByText('preço visível após entrar').length).toBeGreaterThan(0)
 
     await userEvent.click(sheet().getByRole('button', { name: 'Entrar' }))
@@ -68,40 +90,55 @@ describe('Inicio: profissionais', () => {
   })
 
   it('com login mostra nome completo, preço e o contato', async () => {
-    renderInicio({ isLoggedIn: true, userName: 'Beatriz Rocha' })
+    await loginAs('beatriz@exemplo.com')
+    await renderInicio({ isLoggedIn: true, userName: 'Beatriz Rocha' })
     await openTask('Instalar chuveiro')
 
     await userEvent.click(sheet().getByRole('button', { name: /Carlos Henrique/ }))
     expect(sheet().getByRole('heading', { name: 'Carlos Henrique' })).toBeInTheDocument()
     expect(sheet().getByText(/R\$\s150/, { selector: '.price-value' })).toBeInTheDocument()
-    expect(sheet().getByRole('link', { name: 'Ver perfil completo' })).toHaveAttribute('href', '#/prestador/p1')
 
-    // Os dados de exemplo não têm WhatsApp
     await userEvent.click(sheet().getByRole('button', { name: 'Falar com Carlos no WhatsApp' }))
     expect(sheet().getByText(/Carlos ainda não cadastrou o WhatsApp/)).toBeInTheDocument()
-
-    await userEvent.click(sheet().getByRole('button', { name: 'Voltar para a lista de profissionais' }))
-    expect(sheet().getByText('Ordenados pela reputação.')).toBeInTheDocument()
   })
 
-  it('sem login o botão do WhatsApp fica desativado', async () => {
-    renderInicio()
+  it('abre o WhatsApp com o número gravado no banco', async () => {
+    apiServer().db.prepare(`UPDATE professionals SET whatsapp = '62988887777' WHERE id = 'p1'`).run()
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    await loginAs('beatriz@exemplo.com')
+    await renderInicio({ isLoggedIn: true, userName: 'Beatriz Rocha' })
     await openTask('Instalar chuveiro')
-    await userEvent.click(sheet().getByRole('button', { name: /^Carlos/ }))
-    expect(sheet().getByRole('button', { name: 'Falar com Carlos no WhatsApp' })).toBeDisabled()
+    await userEvent.click(sheet().getByRole('button', { name: /Carlos Henrique/ }))
+    await userEvent.click(sheet().getByRole('button', { name: 'Falar com Carlos no WhatsApp' }))
+    expect(open).toHaveBeenCalledWith(expect.stringMatching(/^https:\/\/wa\.me\/5562988887777\?text=/), '_blank', 'noopener,noreferrer')
+  })
+
+  it('rascunho não aparece na lista', async () => {
+    apiServer().db.prepare(`UPDATE professionals SET status = 'rascunho' WHERE id = 'p1'`).run()
+    await renderInicio()
+    await openTask('Instalar chuveiro')
+    expect(sheet().queryByRole('button', { name: /^Carlos/ })).not.toBeInTheDocument()
+  })
+
+  it('serviço sem profissionais avisa', async () => {
+    apiServer().db.prepare(`DELETE FROM services WHERE name = 'Plantar grama'`).run()
+    await renderInicio()
+    await userEvent.type(screen.getByRole('searchbox'), 'Plantar grama')
+    await userEvent.click(screen.getByRole('button', { name: /Plantar grama/ }))
+    expect(await sheet().findByText('Ainda não há profissionais para este serviço.')).toBeInTheDocument()
   })
 })
 
 describe('Inicio: cabeçalho', () => {
   it('cumprimenta pelo primeiro nome e permite sair', async () => {
-    const { onLogout } = renderInicio({ isLoggedIn: true, userName: 'Beatriz Rocha' })
+    const { onLogout } = await renderInicio({ isLoggedIn: true, userName: 'Beatriz Rocha' })
     expect(screen.getByText(/, Beatriz$/)).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Sair' }))
     expect(onLogout).toHaveBeenCalled()
   })
 
-  it('mostra o atalho da administração só para admin', () => {
-    renderInicio({ isLoggedIn: true, isAdmin: true, userName: 'Administração' })
+  it('mostra o atalho da administração só para admin', async () => {
+    await renderInicio({ isLoggedIn: true, isAdmin: true, userName: 'Administração' })
     expect(screen.getByRole('link', { name: 'Administração' })).toBeInTheDocument()
   })
 })

@@ -25,6 +25,13 @@ describe('formatPhone', () => {
     expect(formatPhone('62999998888')).toBe('(62) 99999-8888')
   })
 
+  // Achado da exploração: "+55 (62) 99999-8888" virava "(55) 62999-9988"
+  it('tira o código do Brasil de número colado', () => {
+    expect(formatPhone('+55 (62) 99999-8888')).toBe('(62) 99999-8888')
+    expect(formatPhone('5562999998888')).toBe('(62) 99999-8888')
+    expect(formatPhone('556233334444')).toBe('(62) 3333-4444')
+  })
+
   it('ignora o que não é dígito e corta no 11º', () => {
     expect(formatPhone('(62) 99999-8888 ramal 2')).toBe('(62) 99999-8888')
   })

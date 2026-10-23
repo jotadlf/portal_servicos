@@ -5,7 +5,10 @@ export function isValidPhone(digits: string) {
 
 // Máscara para exibição: (62) 99999-9999
 export function formatPhone(value: string) {
-  const d = value.replace(/\D/g, '').slice(0, 11)
+  let d = value.replace(/\D/g, '')
+  // Número colado com o código do Brasil (+55 62 99999-8888): o 55 sai
+  if (d.length > 11 && d.startsWith('55')) d = d.slice(2)
+  d = d.slice(0, 11)
   if (d.length <= 2) return d.length ? `(${d}` : ''
   if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`
   if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`

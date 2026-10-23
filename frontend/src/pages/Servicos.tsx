@@ -4,17 +4,26 @@ import { BottomMenu } from '../components/BottomMenu'
 import { LoginBar } from '../components/LoginBar'
 import { PlanOffer } from '../components/PlanOffer'
 import { Rating } from '../components/Rating'
-import { findPlan, formatMoney } from '../features/conta/plano'
-import { becomeProvider, getAccountProfessional, type Account } from '../features/conta/usuario'
+import { LoadError, Loading } from '../components/Status'
+import { findPlan, formatMoney, type PlanSettings } from '../features/conta/plano'
+import { fetchPlanSettings } from '../features/conta/plano-api'
+import { becomeProvider, type Account } from '../features/conta/usuario'
 import {
-  contactsFor,
-  reviewsFor,
-  updateProfessional,
+  fetchContacts,
+  fetchOwnProfessional,
+  fetchReviews,
+  markContactAnswered,
+  saveAbout,
+  saveServices,
+  type ContactRequest,
   type OfferedService,
   type Professional,
-} from '../features/profissionais/dados-exemplo'
-import { findProfession, professions } from '../features/servicos/catalogo'
+  type Review,
+} from '../features/profissionais/prestadores'
+import { fetchCatalog, findProfession, type Profession } from '../features/servicos/catalogo'
+import { useApi } from '../hooks/useApi'
 import { routes } from '../hooks/useHashRoute'
+import { errorMessage } from '../lib/api'
 import { formatDate, formatPrice, formatRating, normalize } from '../lib/format'
 
 const tabs = [
@@ -28,18 +37,29 @@ type TabId = (typeof tabs)[number]['id']
 type ServicosProps = {
   account?: Account
   onLogin: () => void
+  onAccountChange: (account: Account) => void
 }
 
-export function Servicos({ account, onLogin }: ServicosProps) {
-  // Muda quando a pessoa decide oferecer serviços, para a página trocar de conteúdo
-  const [professionalId, setProfessionalId] = useState(account?.professionalId)
-  const pro = account && professionalId ? getAccountProfessional(account) : undefined
+export function Servicos({ account, onLogin, onAccountChange }: ServicosProps) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  async function startOffering() {
+    setBusy(true)
+    setError('')
+    try {
+      onAccountChange(await becomeProvider())
+    } catch (failure) {
+      setError(errorMessage(failure))
+      setBusy(false)
+    }
+  }
 
   return (
     <div className="app">
       <main className="page">
-        {pro ? (
-          <Painel pro={pro} />
+        {account?.professionalId ? (
+          <PainelLoader />
         ) : (
           <div className="page-section">
             <h1 className="page-title">Ofereça seus serviços</h1>
@@ -49,16 +69,12 @@ export function Servicos({ account, onLogin }: ServicosProps) {
             </p>
             <PlanOffer />
             {account ? (
-              <button
-                type="button"
-                className="primary"
-                onClick={() => {
-                  becomeProvider(account.id)
-                  setProfessionalId(account.professionalId)
-                }}
-              >
-                Quero oferecer serviços
-              </button>
+              <>
+                <div aria-live="polite">{error && <p className="form-error">{error}</p>}</div>
+                <button type="button" className="primary" disabled={busy} onClick={startOffering}>
+                  {busy ? 'Preparando…' : 'Quero oferecer serviços'}
+                </button>
+              </>
             ) : (
               <LoginBar message="Entre para cadastrar seus serviços." onLogin={onLogin} />
             )}
@@ -71,12 +87,41 @@ export function Servicos({ account, onLogin }: ServicosProps) {
   )
 }
 
-function Painel({ pro }: { pro: Professional }) {
-  const [tab, setTab] = useState<TabId>('servicos')
-  // Faz o cartão de publicação reagir quando a lista de serviços muda
-  const [, setVersion] = useState(0)
+type PainelData = {
+  pro: Professional
+  professions: Profession[]
+  settings: PlanSettings
+  contacts: ContactRequest[]
+  reviews: Review[]
+}
 
-  const newContacts = contactsFor(pro.id).filter((contact) => !contact.answered).length
+// Carrega tudo de que o painel precisa de uma vez
+function PainelLoader() {
+  const data = useApi(async (): Promise<PainelData> => {
+    const [pro, professions, settings, contacts] = await Promise.all([
+      fetchOwnProfessional(),
+      fetchCatalog(),
+      fetchPlanSettings(),
+      fetchContacts(),
+    ])
+    // Avaliações públicas só existem depois de publicar
+    const reviews = pro.status === 'publicado' ? await fetchReviews(pro.id) : []
+    return { pro, professions, settings, contacts, reviews }
+  })
+
+  if (data.loading && !data.data) return <Loading />
+  if (!data.data) return <LoadError message={data.error ?? ''} onRetry={data.reload} />
+  return <Painel {...data.data} />
+}
+
+function Painel(props: PainelData) {
+  const { professions, settings, reviews } = props
+  const [tab, setTab] = useState<TabId>('servicos')
+  // O cartão de publicação acompanha a lista de serviços gravada
+  const [pro, setPro] = useState(props.pro)
+  const [contacts, setContacts] = useState(props.contacts)
+
+  const newContacts = contacts.filter((contact) => !contact.answered).length
 
   return (
     <>
@@ -86,8 +131,7 @@ function Painel({ pro }: { pro: Professional }) {
         <PublishCard pro={pro} />
       ) : (
         <p className="notice">
-          Perfil publicado.{' '}
-          <PublishedPlan pro={pro} />
+          Perfil publicado. <PublishedPlan pro={pro} settings={settings} />
         </p>
       )}
 
@@ -118,19 +162,21 @@ function Painel({ pro }: { pro: Professional }) {
 
       {tab === 'servicos' && (
         <>
-          <ServicosForm pro={pro} onChange={() => setVersion((v) => v + 1)} />
+          <ServicosForm pro={pro} professions={professions} onSaved={setPro} />
           <SobreForm pro={pro} />
         </>
       )}
-      {tab === 'contatos' && <Contatos pro={pro} />}
-      {tab === 'avaliacoes' && <Avaliacoes pro={pro} />}
+      {tab === 'contatos' && <Contatos contacts={contacts} onChange={setContacts} />}
+      {tab === 'avaliacoes' && <Avaliacoes pro={pro} reviews={reviews} />}
     </>
   )
 }
 
-// O que falta para publicar: sem WhatsApp ou sem serviços o perfil não teria utilidade
+// O que falta para publicar: sem foto, WhatsApp ou serviços o perfil não passaria confiança
+// nem teria utilidade. O servidor confere o mesmo ao publicar.
 function PublishCard({ pro }: { pro: Professional }) {
   const steps = [
+    { done: Boolean(pro.photo), label: 'Foto no Perfil', href: routes.conta },
     { done: Boolean(pro.whatsapp), label: 'WhatsApp cadastrado no Perfil', href: routes.conta },
     { done: pro.services.length > 0, label: 'Pelo menos um serviço cadastrado' },
   ]
@@ -163,38 +209,44 @@ function PublishCard({ pro }: { pro: Professional }) {
   )
 }
 
-function PublishedPlan({ pro }: { pro: Professional }) {
-  const plan = findPlan(pro.plan ?? 'mensal')
+function PublishedPlan({ pro, settings }: { pro: Professional; settings: PlanSettings }) {
+  const plan = findPlan(settings, pro.plan ?? 'mensal')
   const price = `${formatMoney(plan.price)} ${plan.period}`
   return pro.trialEndsAt
     ? `Plano ${plan.label.toLowerCase()}: grátis até ${formatDate(pro.trialEndsAt)}, depois ${price}.`
     : `Plano ${plan.label.toLowerCase()}: ${price}.`
 }
 
-function SavedNote({ show }: { show: boolean }) {
-  return (
-    <div aria-live="polite">
-      {show && (
-        <p className="form-ready">
-          Alterações salvas nesta sessão. A gravação no servidor ainda não está disponível.
-        </p>
-      )}
-    </div>
-  )
-}
-
 function SobreForm({ pro }: { pro: Professional }) {
   const [about, setAbout] = useState(pro.about ?? '')
   const [saved, setSaved] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    updateProfessional(pro.id, { about: about.trim() })
-    setSaved(true)
+    if (busy) return
+    setBusy(true)
+    setError('')
+    try {
+      setAbout((await saveAbout(about)).about)
+      setSaved(true)
+    } catch (failure) {
+      setError(errorMessage(failure))
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
-    <form className="page-section form" onSubmit={handleSubmit} onChange={() => setSaved(false)}>
+    <form
+      className="page-section form"
+      onSubmit={handleSubmit}
+      onChange={() => {
+        setSaved(false)
+        setError('')
+      }}
+    >
       <label className="field">
         <span>Sobre seu trabalho</span>
         <textarea
@@ -206,13 +258,16 @@ function SobreForm({ pro }: { pro: Professional }) {
         />
       </label>
 
-      <SavedNote show={saved} />
+      <div aria-live="polite">
+        {error && <p className="form-error">{error}</p>}
+        {saved && <p className="form-ready">Texto salvo.</p>}
+      </div>
       <div className="form-actions">
         <a className="clear-filters" href={routes.perfil(pro.id)}>
           Ver como os clientes veem
         </a>
-        <button type="submit" className="login-button">
-          Salvar
+        <button type="submit" className="login-button" disabled={busy}>
+          {busy ? 'Salvando…' : 'Salvar'}
         </button>
       </div>
     </form>
@@ -221,16 +276,25 @@ function SobreForm({ pro }: { pro: Professional }) {
 
 type Service = OfferedService & { id: string }
 
-function ServicosForm({ pro, onChange }: { pro: Professional; onChange: () => void }) {
-  const [services, setServices] = useState<Service[]>(() =>
-    pro.services.map((service, index) => ({ ...service, id: `s${index}` })),
-  )
+const withIds = (services: OfferedService[]): Service[] =>
+  services.map((service, index) => ({ ...service, id: `s${index}-${service.name}` }))
+
+type ServicosFormProps = {
+  pro: Professional
+  professions: Profession[]
+  onSaved: (pro: Professional) => void
+}
+
+function ServicosForm({ pro, professions, onSaved }: ServicosFormProps) {
+  const [services, setServices] = useState<Service[]>(() => withIds(pro.services))
   // id do serviço em edição, 'novo' ao adicionar, ou null
   const [editing, setEditing] = useState<string | null>(null)
   const [removed, setRemoved] = useState<{ service: Service; index: number } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
 
   // Profissão já marcada num serviço novo: a do último serviço cadastrado
-  const lastProfessionId = services.at(-1)?.professionId ?? professions[0].id
+  const lastProfessionId = services.at(-1)?.professionId ?? professions[0]?.id ?? ''
 
   // Agrupa por profissão, na ordem do catálogo
   const groups = professions
@@ -240,35 +304,42 @@ function ServicosForm({ pro, onChange }: { pro: Professional; onChange: () => vo
     }))
     .filter(({ items }) => items.length > 0)
 
-  // TODO: gravar as alterações de serviços no Supabase.
-  function commit(next: Service[]) {
-    setServices(next)
-    updateProfessional(pro.id, {
-      services: next.map(({ professionId, name, price }) => ({ professionId, name, price })),
-    })
-    onChange()
+  // Grava a lista inteira; só troca a tela se o servidor aceitar
+  async function commit(next: Service[]) {
+    setBusy(true)
+    setError('')
+    try {
+      const saved = await saveServices(next)
+      setServices(next)
+      onSaved(saved)
+      return true
+    } catch (failure) {
+      setError(errorMessage(failure))
+      return false
+    } finally {
+      setBusy(false)
+    }
   }
 
-  function save(service: Service) {
-    commit(
-      service.id
-        ? services.map((item) => (item.id === service.id ? service : item))
-        : [...services, { ...service, id: `s${Date.now()}` }],
-    )
-    setEditing(null)
+  async function save(service: Service) {
+    const next = service.id
+      ? services.map((item) => (item.id === service.id ? service : item))
+      : [...services, { ...service, id: `s${Date.now()}` }]
+    if (await commit(next)) setEditing(null)
   }
 
-  function remove(service: Service) {
-    setRemoved({ service, index: services.indexOf(service) })
-    commit(services.filter(({ id }) => id !== service.id))
+  async function remove(service: Service) {
+    const index = services.indexOf(service)
+    if (await commit(services.filter(({ id }) => id !== service.id))) {
+      setRemoved({ service, index })
+    }
   }
 
-  function undoRemove() {
+  async function undoRemove() {
     if (!removed) return
     const next = [...services]
     next.splice(removed.index, 0, removed.service)
-    commit(next)
-    setRemoved(null)
+    if (await commit(next)) setRemoved(null)
   }
 
   // Mesmo nome só conta como repetido dentro da mesma profissão
@@ -282,7 +353,7 @@ function ServicosForm({ pro, onChange }: { pro: Professional; onChange: () => vo
   }
 
   return (
-    <section className="page-section" aria-label="Meus serviços">
+    <section className="page-section" aria-label="Meus serviços" aria-busy={busy}>
       {services.length === 0 && editing !== 'novo' && (
         <p className="section-note">
           Você ainda não oferece nenhum serviço. Adicione o primeiro para aparecer nas buscas.
@@ -305,6 +376,8 @@ function ServicosForm({ pro, onChange }: { pro: Professional; onChange: () => vo
                 <li key={service.id}>
                   <ServiceEditor
                     service={service}
+                    professions={professions}
+                    busy={busy}
                     isDuplicate={isDuplicate}
                     onSave={save}
                     onCancel={() => setEditing(null)}
@@ -323,6 +396,7 @@ function ServicosForm({ pro, onChange }: { pro: Professional; onChange: () => vo
                       type="button"
                       className="icon-button"
                       aria-label={`Editar ${service.name}`}
+                      disabled={busy}
                       onClick={() => setEditing(service.id)}
                     >
                       <Pencil size={16} aria-hidden="true" />
@@ -331,6 +405,7 @@ function ServicosForm({ pro, onChange }: { pro: Professional; onChange: () => vo
                       type="button"
                       className="icon-button"
                       aria-label={`Apagar ${service.name}`}
+                      disabled={busy}
                       onClick={() => remove(service)}
                     >
                       <Trash2 size={16} aria-hidden="true" />
@@ -344,10 +419,11 @@ function ServicosForm({ pro, onChange }: { pro: Professional; onChange: () => vo
       ))}
 
       <div aria-live="polite">
+        {error && <p className="form-error">{error}</p>}
         {removed && (
           <p className="undo">
             {removed.service.name} apagado.{' '}
-            <button type="button" className="clear-filters" onClick={undoRemove}>
+            <button type="button" className="clear-filters" disabled={busy} onClick={undoRemove}>
               Desfazer
             </button>
           </p>
@@ -357,6 +433,8 @@ function ServicosForm({ pro, onChange }: { pro: Professional; onChange: () => vo
       {editing === 'novo' ? (
         <ServiceEditor
           service={{ id: '', professionId: lastProfessionId, name: '', price: null }}
+          professions={professions}
+          busy={busy}
           isDuplicate={isDuplicate}
           onSave={save}
           onCancel={() => setEditing(null)}
@@ -380,18 +458,20 @@ function ServicosForm({ pro, onChange }: { pro: Professional; onChange: () => vo
 
 type ServiceEditorProps = {
   service: Service
+  professions: Profession[]
+  busy: boolean
   isDuplicate: (name: string, professionId: string, id: string) => boolean
   onSave: (service: Service) => void
   onCancel: () => void
 }
 
-function ServiceEditor({ service, isDuplicate, onSave, onCancel }: ServiceEditorProps) {
+function ServiceEditor({ service, professions, busy, isDuplicate, onSave, onCancel }: ServiceEditorProps) {
   const [professionId, setProfessionId] = useState(service.professionId)
   const [name, setName] = useState(service.name)
   const [price, setPrice] = useState(service.price == null ? '' : String(service.price))
   const [error, setError] = useState('')
 
-  const suggestions = findProfession(professionId)?.tasks ?? []
+  const suggestions = findProfession(professions, professionId)?.tasks ?? []
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -468,22 +548,31 @@ function ServiceEditor({ service, isDuplicate, onSave, onCancel }: ServiceEditor
         <button type="button" className="clear-filters" onClick={onCancel}>
           Cancelar
         </button>
-        <button type="submit" className="login-button">
-          Salvar
+        <button type="submit" className="login-button" disabled={busy}>
+          {busy ? 'Salvando…' : 'Salvar'}
         </button>
       </div>
     </form>
   )
 }
 
-function Contatos({ pro }: { pro: Professional }) {
-  const [contacts, setContacts] = useState(() => contactsFor(pro.id))
+function Contatos({
+  contacts,
+  onChange,
+}: {
+  contacts: ContactRequest[]
+  onChange: (contacts: ContactRequest[]) => void
+}) {
+  const [error, setError] = useState('')
 
-  function markAnswered(id: string) {
-    // TODO: gravar o status no Supabase.
-    setContacts((current) =>
-      current.map((contact) => (contact.id === id ? { ...contact, answered: true } : contact)),
-    )
+  async function markAnswered(id: string) {
+    setError('')
+    try {
+      await markContactAnswered(id)
+      onChange(contacts.map((contact) => (contact.id === id ? { ...contact, answered: true } : contact)))
+    } catch (failure) {
+      setError(errorMessage(failure))
+    }
   }
 
   if (contacts.length === 0) {
@@ -496,6 +585,7 @@ function Contatos({ pro }: { pro: Professional }) {
 
   return (
     <section className="page-section">
+      <div aria-live="polite">{error && <p className="form-error">{error}</p>}</div>
       <ul className="review-list">
         {contacts.map((contact) => (
           <li key={contact.id} className="review">
@@ -524,9 +614,7 @@ function Contatos({ pro }: { pro: Professional }) {
   )
 }
 
-function Avaliacoes({ pro }: { pro: Professional }) {
-  const comments = reviewsFor(pro.id)
-
+function Avaliacoes({ pro, reviews }: { pro: Professional; reviews: Review[] }) {
   return (
     <section className="page-section">
       <div className="score">
@@ -534,9 +622,9 @@ function Avaliacoes({ pro }: { pro: Professional }) {
         <Rating rating={pro.rating} reviews={pro.reviews} />
       </div>
 
-      {comments.length > 0 ? (
+      {reviews.length > 0 ? (
         <ul className="review-list">
-          {comments.map((review) => (
+          {reviews.map((review) => (
             <li key={review.id} className="review">
               <div className="review-head">
                 <strong>{review.author}</strong>

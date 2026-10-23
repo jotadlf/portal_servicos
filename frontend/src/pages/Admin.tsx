@@ -6,24 +6,22 @@ import { PageBar } from '../components/PageBar'
 import { ColumnChart } from '../components/graficos/ColumnChart'
 import { LineChart } from '../components/graficos/LineChart'
 import { StackedBar } from '../components/graficos/StackedBar'
-import { getStats, servicesByProfession } from '../features/admin/estatisticas'
+import { LoadError, Loading } from '../components/Status'
+import { fetchStats, type RankingRow, type Stats } from '../features/admin/estatisticas'
 import { monthlyHistory } from '../features/admin/historico'
-import {
-  formatMoney,
-  gateways,
-  getPlanSettings,
-  updatePlanSettings,
-  type PaymentGateway,
-} from '../features/conta/plano'
+import { formatMoney, gateways, type PaymentGateway, type PlanSettings } from '../features/conta/plano'
+import { fetchPlanSettings, savePlanSettings } from '../features/conta/plano-api'
 import type { Account } from '../features/conta/usuario'
-import { removeServicesOf } from '../features/profissionais/dados-exemplo'
 import {
   addProfession,
-  professions,
+  fetchCatalog,
   removeProfession,
   type Profession,
 } from '../features/servicos/catalogo'
+import { useApi } from '../hooks/useApi'
+import { ApiError, errorMessage } from '../lib/api'
 import { normalize } from '../lib/format'
+import { isValidName } from '../lib/nome'
 
 const tabs = [
   { id: 'painel', label: 'Painel' },
@@ -95,11 +93,16 @@ const periods = [
 ]
 
 function Painel() {
+  const data = useApi(fetchStats)
+  if (data.loading && !data.data) return <Loading />
+  if (!data.data) return <LoadError message={data.error ?? ''} onRetry={data.reload} />
+  return <PainelView stats={data.data.stats} ranking={data.data.ranking} />
+}
+
+function PainelView({ stats, ranking }: { stats: Stats; ranking: RankingRow[] }) {
   const [months, setMonths] = useState(6)
-  const stats = getStats()
   const history = monthlyHistory(months)
   const labels = history.map((point) => point.label)
-  const ranking = servicesByProfession()
   const max = Math.max(1, ...ranking.map(({ services }) => services))
   const count = (value: number) => value.toLocaleString('pt-BR')
 
@@ -226,9 +229,9 @@ function Painel() {
           <h3 id="g-modalidades">Serviços por modalidade</h3>
           <p className="chart-sub">Quantos serviços cada modalidade tem cadastrados</p>
           <ul className="bar-list">
-            {ranking.map(({ profession, services, providers }) => (
-              <li key={profession.id}>
-                <span className="bar-label">{profession.name}</span>
+            {ranking.map(({ professionId, name, services, providers }) => (
+              <li key={professionId}>
+                <span className="bar-label">{name}</span>
                 <span className="bar-track" aria-hidden="true">
                   <span className="bar-fill" style={{ width: `${(services / max) * 100}%` }} />
                 </span>
@@ -253,13 +256,18 @@ function Painel() {
 }
 
 function Modalidades() {
-  const [, setVersion] = useState(0)
-  const refresh = () => setVersion((v) => v + 1)
-  const usage = new Map(servicesByProfession().map((item) => [item.profession.id, item]))
+  // Catálogo + quantos serviços cada modalidade tem (para avisar antes de remover)
+  const data = useApi(() => Promise.all([fetchCatalog(), fetchStats()]))
+  if (data.loading && !data.data) return <Loading />
+  if (!data.data) return <LoadError message={data.error ?? ''} onRetry={data.reload} />
+
+  const [professions, { ranking }] = data.data
+  const usage = new Map(ranking.map((item) => [item.professionId, item]))
+  const refresh = data.reload
 
   return (
     <>
-      <NovaModalidade onAdded={refresh} />
+      <NovaModalidade professions={professions} onAdded={refresh} />
 
       <section className="page-section" aria-labelledby="modalidades-titulo">
         <h2 id="modalidades-titulo">{professions.length} modalidades no catálogo</h2>
@@ -289,12 +297,21 @@ type ModalidadeItemProps = {
 function ModalidadeItem({ profession, services, providers, onRemoved }: ModalidadeItemProps) {
   // Remover pede confirmação, dizendo quantos serviços somem junto
   const [confirming, setConfirming] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
   const Icon = profession.icon
 
-  function remove() {
-    removeServicesOf(profession.id)
-    removeProfession(profession.id)
-    onRemoved()
+  // Os serviços da modalidade saem junto, no servidor
+  async function remove() {
+    setBusy(true)
+    setError('')
+    try {
+      await removeProfession(profession.id)
+      onRemoved()
+    } catch (failure) {
+      setError(errorMessage(failure))
+      setBusy(false)
+    }
   }
 
   return (
@@ -312,13 +329,14 @@ function ModalidadeItem({ profession, services, providers, onRemoved }: Modalida
           {services} {services === 1 ? 'serviço' : 'serviços'} de {providers}{' '}
           {providers === 1 ? 'prestador' : 'prestadores'}
         </small>
+        {error && <small className="form-error">{error}</small>}
       </span>
       {confirming ? (
         <span className="modality-confirm">
           <button type="button" className="clear-filters" onClick={() => setConfirming(false)}>
             Cancelar
           </button>
-          <button type="button" className="danger-button" onClick={remove}>
+          <button type="button" className="danger-button" disabled={busy} onClick={remove}>
             {services > 0 ? `Remover e apagar ${services} serviços` : 'Remover'}
           </button>
         </span>
@@ -336,15 +354,20 @@ function ModalidadeItem({ profession, services, providers, onRemoved }: Modalida
   )
 }
 
-function NovaModalidade({ onAdded }: { onAdded: () => void }) {
+// PNG ou WebP; SVG fica de fora porque pode carregar script
+const MODALITY_IMAGE_TYPES = ['image/png', 'image/webp']
+
+function NovaModalidade({ professions, onAdded }: { professions: Profession[]; onAdded: () => void }) {
   const [name, setName] = useState('')
   const [tasks, setTasks] = useState('')
-  const [image, setImage] = useState<string>()
+  // Arquivo para enviar e a prévia dele na tela
+  const [image, setImage] = useState<{ file: File; preview: string }>()
   const [error, setError] = useState('')
   const [added, setAdded] = useState('')
+  const [busy, setBusy] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const trimmed = name.trim()
     // Uma sugestão de serviço por linha
@@ -357,6 +380,11 @@ function NovaModalidade({ onAdded }: { onAdded: () => void }) {
       setError('Informe o nome da modalidade.')
       return
     }
+    // Nome de profissão segue a regra dos nomes de pessoa: "Marceneiro", "Técnico de Ar-condicionado"
+    if (!isValidName(trimmed)) {
+      setError('Use só letras no nome da modalidade, sem números ou símbolos.')
+      return
+    }
     if (professions.some((profession) => normalize(profession.name) === normalize(trimmed))) {
       setError('Já existe uma modalidade com esse nome.')
       return
@@ -366,8 +394,16 @@ function NovaModalidade({ onAdded }: { onAdded: () => void }) {
       return
     }
 
-    // TODO: enviar a imagem para o Supabase Storage.
-    addProfession({ name: trimmed, tasks: list, image })
+    if (busy) return
+    setBusy(true)
+    try {
+      await addProfession({ name: trimmed, tasks: list, image: image?.file })
+    } catch (failure) {
+      setError(errorMessage(failure))
+      setBusy(false)
+      return
+    }
+    setBusy(false)
     setAdded(trimmed)
     setName('')
     setTasks('')
@@ -394,16 +430,25 @@ function NovaModalidade({ onAdded }: { onAdded: () => void }) {
           aria-label={image ? 'Trocar imagem' : 'Adicionar imagem'}
           onClick={() => fileRef.current?.click()}
         >
-          {image ? <img src={image} alt="" /> : <ImagePlus size={24} aria-hidden="true" />}
+          {image ? <img src={image.preview} alt="" /> : <ImagePlus size={24} aria-hidden="true" />}
         </button>
         <input
           ref={fileRef}
           type="file"
-          accept="image/png,image/svg+xml,image/webp"
+          accept={MODALITY_IMAGE_TYPES.join(',')}
+          aria-label="Imagem da modalidade"
           hidden
           onChange={(e) => {
+            // O onChange do formulário apaga os avisos; aqui o aviso é justamente sobre o arquivo
+            e.stopPropagation()
             const file = e.target.files?.[0]
-            if (file) setImage(URL.createObjectURL(file))
+            e.target.value = ''
+            if (!file) return
+            if (!MODALITY_IMAGE_TYPES.includes(file.type)) {
+              setError('Escolha uma imagem PNG ou WebP.')
+              return
+            }
+            setImage({ file, preview: URL.createObjectURL(file) })
           }}
         />
         <label className="field">
@@ -417,7 +462,7 @@ function NovaModalidade({ onAdded }: { onAdded: () => void }) {
         </label>
       </div>
       <small className="field-help">
-        Imagem opcional, de preferência PNG ou SVG com fundo transparente. Sem imagem, o card
+        Imagem opcional, de preferência PNG com fundo transparente. Sem imagem, o card
         mostra um ícone de ferramenta.
       </small>
 
@@ -436,16 +481,19 @@ function NovaModalidade({ onAdded }: { onAdded: () => void }) {
         {added && <p className="form-ready">{added} já aparece na página inicial.</p>}
       </div>
 
-      <button type="submit" className="primary">
-        Adicionar modalidade
+      <button type="submit" className="primary" disabled={busy}>
+        {busy ? 'Adicionando…' : 'Adicionar modalidade'}
       </button>
     </form>
   )
 }
 
-// "19,90" ou "19.90" viram 19.9; texto inválido vira NaN
+// "19,90", "19.90" e "1.234,50" viram número; texto inválido vira NaN.
+// Com vírgula, o ponto é de milhar; sem vírgula, o ponto é dos centavos.
 function parseMoney(value: string) {
-  return Number(value.replace(/\./g, '').replace(',', '.'))
+  const text = value.trim()
+  const normalized = text.includes(',') ? text.replace(/\./g, '').replace(',', '.') : text
+  return /^\d+(\.\d{1,2})?$/.test(normalized) ? Number(normalized) : NaN
 }
 
 function moneyInput(value: number) {
@@ -453,7 +501,14 @@ function moneyInput(value: number) {
 }
 
 function PlanoForm() {
-  const settings = getPlanSettings()
+  const data = useApi(fetchPlanSettings)
+  if (data.loading && !data.data) return <Loading />
+  if (!data.data) return <LoadError message={data.error ?? ''} onRetry={data.reload} />
+  return <PlanoFields settings={data.data} />
+}
+
+function PlanoFields({ settings }: { settings: PlanSettings }) {
+  const [busy, setBusy] = useState(false)
   const [monthly, setMonthly] = useState(moneyInput(settings.monthlyPrice))
   const [semiannual, setSemiannual] = useState(moneyInput(settings.semiannualPrice))
   const [trialDays, setTrialDays] = useState(String(settings.trialDays))
@@ -470,8 +525,9 @@ function PlanoForm() {
       ? Math.round((1 - semiannualValue / (monthlyValue * 6)) * 100)
       : null
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (busy) return
     const days = Number(trialDays)
 
     if (!(monthlyValue > 0) || !(semiannualValue > 0)) {
@@ -489,15 +545,23 @@ function PlanoForm() {
 
     // Vale para quem publicar daqui em diante.
     // TODO: no gateway, novos preços exigem um plano novo; assinaturas antigas mantêm o valor.
-    updatePlanSettings({
-      monthlyPrice: monthlyValue,
-      semiannualPrice: semiannualValue,
-      trialDays: days,
-      gateway,
-      pixEnabled,
-      cardEnabled,
-    })
-    setSaved(true)
+    setBusy(true)
+    try {
+      await savePlanSettings({
+        monthlyPrice: monthlyValue,
+        semiannualPrice: semiannualValue,
+        trialDays: days,
+        gateway,
+        pixEnabled,
+        cardEnabled,
+      })
+      setSaved(true)
+    } catch (failure) {
+      const fields = failure instanceof ApiError ? Object.values(failure.fields) : []
+      setError(fields[0] ?? errorMessage(failure))
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -588,13 +652,13 @@ function PlanoForm() {
         {error && <p className="form-error">{error}</p>}
         {saved && (
           <p className="form-ready">
-            Configurações salvas nesta sessão. Valem para quem publicar a partir de agora.
+            Configurações salvas. Valem para quem publicar a partir de agora.
           </p>
         )}
       </div>
 
-      <button type="submit" className="primary">
-        Salvar configurações
+      <button type="submit" className="primary" disabled={busy}>
+        {busy ? 'Salvando…' : 'Salvar configurações'}
       </button>
     </form>
   )

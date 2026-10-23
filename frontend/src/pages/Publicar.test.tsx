@@ -1,30 +1,14 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getPlanSettings, trialEndDate, updatePlanSettings } from '../features/conta/plano'
-import {
-  createAccount,
-  getAccount,
-  getAccountProfessional,
-  type Account,
-} from '../features/conta/usuario'
+import { describe, expect, it, vi } from 'vitest'
+import { trialEndDate } from '../features/conta/plano'
+import type { Account } from '../features/conta/usuario'
+import { apiServer, dbRow, loginAs, newAccount, readyProvider } from '../test/api-server'
 import { Publicar } from './Publicar'
 
-const originalSettings = { ...getPlanSettings() }
-afterEach(() => updatePlanSettings(originalSettings))
-
-let counter = 0
-function newProvider(): Account {
-  counter += 1
-  return createAccount({
-    name: 'Ana Lima',
-    email: `publicar${counter}@exemplo.com`,
-    password: 'segredo',
-    asProvider: true,
-  })
-}
-
 const renderPublicar = (account?: Account) => render(<Publicar account={account} onLogin={vi.fn()} />)
+const setPlan = (sql: string) => apiServer().db.prepare(`UPDATE plan_settings SET ${sql}`).run()
+const checkout = () => screen.findByRole('heading', { name: 'Publique seu perfil' })
 
 describe('Publicar', () => {
   it('sem login pede para entrar', () => {
@@ -32,18 +16,19 @@ describe('Publicar', () => {
     expect(screen.getByText('Entre para publicar seu perfil.')).toBeInTheDocument()
   })
 
-  it('manda quem não é prestador para Serviços', () => {
-    renderPublicar(getAccount('u2'))
+  it('manda quem não é prestador para Serviços', async () => {
+    renderPublicar(await loginAs('beatriz@exemplo.com'))
     expect(screen.getByText('Você ainda não oferece serviços.')).toBeInTheDocument()
   })
 
-  it('avisa quando o perfil já está publicado', () => {
-    renderPublicar(getAccount('u1'))
-    expect(screen.getByText('Seu perfil já está publicado.')).toBeInTheDocument()
+  it('avisa quando o perfil já está publicado', async () => {
+    renderPublicar(await loginAs('carlos@exemplo.com'))
+    expect(await screen.findByText('Seu perfil já está publicado.')).toBeInTheDocument()
   })
 
   it('troca o resumo da cobrança conforme o plano e a forma de pagamento', async () => {
-    renderPublicar(newProvider())
+    renderPublicar(await readyProvider())
+    await checkout()
     const summary = screen.getByRole('region', { name: 'Resumo da cobrança' })
     expect(summary).toHaveTextContent(/R\$\s19,90/)
     expect(summary).toHaveTextContent(/todo mês no Pix/)
@@ -55,30 +40,43 @@ describe('Publicar', () => {
     expect(screen.getByText('Economize 16%')).toBeInTheDocument()
   })
 
-  it('publica com o período grátis e volta para Serviços', async () => {
-    const account = newProvider()
+  it('publica e grava plano, forma de pagamento e fim do período grátis', async () => {
+    const account = await readyProvider()
     renderPublicar(account)
+    await checkout()
     await userEvent.click(screen.getByRole('radio', { name: /Semestral/ }))
+    await userEvent.click(screen.getByRole('radio', { name: /Cartão de crédito/ }))
     await userEvent.click(screen.getByRole('button', { name: 'Começar 15 dias grátis e publicar' }))
 
-    expect(getAccountProfessional(account)).toMatchObject({
+    await waitFor(() => expect(window.location.hash).toBe('#/servicos'))
+    expect(dbRow('SELECT status, plan, payment_method, trial_ends_at FROM professionals WHERE account_id = ?', account.id)).toEqual({
       status: 'publicado',
       plan: 'semestral',
-      trialEndsAt: trialEndDate(),
+      payment_method: 'cartao',
+      trial_ends_at: trialEndDate({ trialDays: 15 } as never),
     })
-    expect(window.location.hash).toBe('#/servicos')
   })
 
-  it('mostra só as formas de pagamento ligadas na administração', () => {
-    updatePlanSettings({ pixEnabled: false })
-    renderPublicar(newProvider())
+  it('mostra o que falta quando alguém abre a tela antes da hora', async () => {
+    renderPublicar(await newAccount({ asProvider: true }))
+    await checkout()
+    await userEvent.click(screen.getByRole('button', { name: /grátis e publicar/ }))
+    expect(await screen.findByText(/Falta completar o perfil.*foto.*WhatsApp.*serviço/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /grátis e publicar/ })).toBeEnabled()
+  })
+
+  it('mostra só as formas de pagamento ligadas na administração', async () => {
+    setPlan('pix_enabled = 0')
+    renderPublicar(await readyProvider())
+    await checkout()
     expect(screen.queryByRole('radio', { name: /Pix/ })).not.toBeInTheDocument()
     expect(screen.getByRole('radio', { name: /Cartão de crédito/ })).toBeChecked()
   })
 
-  it('não deixa publicar sem forma de pagamento', () => {
-    updatePlanSettings({ pixEnabled: false, cardEnabled: false })
-    renderPublicar(newProvider())
+  it('não deixa publicar sem forma de pagamento', async () => {
+    setPlan('pix_enabled = 0, card_enabled = 0')
+    renderPublicar(await readyProvider())
+    await checkout()
     expect(screen.getByText(/Nenhuma forma de pagamento está disponível/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /grátis e publicar/ })).toBeDisabled()
   })

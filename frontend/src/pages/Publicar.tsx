@@ -2,18 +2,22 @@ import { useState, type FormEvent } from 'react'
 import { Check, CreditCard, QrCode } from 'lucide-react'
 import { LoginBar } from '../components/LoginBar'
 import { PageBar } from '../components/PageBar'
+import { LoadError, Loading } from '../components/Status'
 import {
   findPlan,
   formatMoney,
   planSavings,
   trialEndDate,
   getPlans,
-  getPlanSettings,
   type PlanId,
+  type PlanSettings,
 } from '../features/conta/plano'
-import { getAccountProfessional, type Account } from '../features/conta/usuario'
-import { updateProfessional } from '../features/profissionais/dados-exemplo'
+import { fetchPlanSettings } from '../features/conta/plano-api'
+import type { Account } from '../features/conta/usuario'
+import { fetchOwnProfessional, publishProfile } from '../features/profissionais/prestadores'
+import { useApi } from '../hooks/useApi'
 import { routes } from '../hooks/useHashRoute'
+import { ApiError, errorMessage } from '../lib/api'
 import { formatDate } from '../lib/format'
 
 type PublicarProps = {
@@ -36,15 +40,13 @@ const benefits = [
 ]
 
 export function Publicar({ account, onLogin }: PublicarProps) {
-  const pro = account ? getAccountProfessional(account) : undefined
-
   return (
     <div className="app">
       <PageBar title="Publicar perfil" />
       <main className="page">
         {!account && <LoginBar message="Entre para publicar seu perfil." onLogin={onLogin} />}
 
-        {account && !pro && (
+        {account && !account.professionalId && (
           <div className="empty">
             <p>Você ainda não oferece serviços.</p>
             <a className="clear-filters" href={routes.servicos}>
@@ -53,41 +55,59 @@ export function Publicar({ account, onLogin }: PublicarProps) {
           </div>
         )}
 
-        {pro?.status === 'publicado' && (
-          <div className="empty">
-            <p>Seu perfil já está publicado.</p>
-            <a className="clear-filters" href={routes.servicos}>
-              Voltar para Serviços
-            </a>
-          </div>
-        )}
-
-        {pro?.status === 'rascunho' && <Checkout professionalId={pro.id} />}
+        {account?.professionalId && <CheckoutLoader />}
       </main>
     </div>
   )
 }
 
-function Checkout({ professionalId }: { professionalId: string }) {
-  const { trialDays, pixEnabled, cardEnabled } = getPlanSettings()
-  const plans = getPlans()
+function CheckoutLoader() {
+  const data = useApi(() => Promise.all([fetchOwnProfessional(), fetchPlanSettings()]))
+  if (data.loading && !data.data) return <Loading />
+  if (!data.data) return <LoadError message={data.error ?? ''} onRetry={data.reload} />
+
+  const [pro, settings] = data.data
+  if (pro.status === 'publicado') {
+    return (
+      <div className="empty">
+        <p>Seu perfil já está publicado.</p>
+        <a className="clear-filters" href={routes.servicos}>
+          Voltar para Serviços
+        </a>
+      </div>
+    )
+  }
+  return <Checkout settings={settings} />
+}
+
+function Checkout({ settings }: { settings: PlanSettings }) {
+  const { trialDays, pixEnabled, cardEnabled } = settings
+  const plans = getPlans(settings)
   // Só as formas de pagamento ligadas na administração
   const enabledMethods = methods.filter(({ id }) => (id === 'pix' ? pixEnabled : cardEnabled))
   const [planId, setPlanId] = useState<PlanId>('mensal')
   const [method, setMethod] = useState<MethodId | undefined>(enabledMethods[0]?.id)
-  const plan = findPlan(planId)
-  const firstCharge = trialEndDate()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const plan = findPlan(settings, planId)
+  const firstCharge = trialEndDate(settings)
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (busy || !method) return
+    setBusy(true)
+    setError('')
     // TODO: criar a assinatura no gateway de pagamento (Mercado Pago, Stripe...).
     // Os dados do cartão são digitados na página do gateway, nunca no nosso app.
-    updateProfessional(professionalId, {
-      status: 'publicado',
-      trialEndsAt: firstCharge,
-      plan: planId,
-    })
-    window.location.assign(routes.servicos)
+    try {
+      await publishProfile(planId, method)
+      window.location.assign(routes.servicos)
+    } catch (failure) {
+      // O servidor diz o que falta (foto, WhatsApp, serviço) se alguém chegar aqui antes da hora
+      const missing = failure instanceof ApiError ? Object.values(failure.fields) : []
+      setError([errorMessage(failure), ...missing].join(' '))
+      setBusy(false)
+    }
   }
 
   return (
@@ -110,7 +130,7 @@ function Checkout({ professionalId }: { professionalId: string }) {
       <fieldset className="page-section choice-group">
         <legend>Plano</legend>
         {plans.map((option) => {
-          const savings = planSavings(option)
+          const savings = planSavings(settings, option)
           return (
             <label
               key={option.id}
@@ -184,8 +204,10 @@ function Checkout({ professionalId }: { professionalId: string }) {
         </small>
       </section>
 
-      <button type="submit" className="primary" disabled={!method}>
-        Começar {trialDays} dias grátis e publicar
+      <div aria-live="polite">{error && <p className="form-error">{error}</p>}</div>
+
+      <button type="submit" className="primary" disabled={!method || busy}>
+        {busy ? 'Publicando…' : `Começar ${trialDays} dias grátis e publicar`}
       </button>
     </form>
   )

@@ -5,8 +5,15 @@ import { Avatar } from '../components/Avatar'
 import { BottomMenu } from '../components/BottomMenu'
 import { BlurredPrice, LoginBar } from '../components/LoginBar'
 import { Rating } from '../components/Rating'
-import { priceFor, professionalsFor, type Professional } from '../features/profissionais/dados-exemplo'
-import { getAllTasks, professions, type Task } from '../features/servicos/catalogo'
+import { LoadError, Loading } from '../components/Status'
+import {
+  fetchProfessionalsFor,
+  serviceFor,
+  type OfferedService,
+  type Professional,
+} from '../features/profissionais/prestadores'
+import { fetchCatalog, getAllTasks, type Task } from '../features/servicos/catalogo'
+import { useApi } from '../hooks/useApi'
 import { routes } from '../hooks/useHashRoute'
 import { firstName, formatPrice, greeting, normalize } from '../lib/format'
 import { contactMessage, openWhatsapp } from '../lib/whatsapp'
@@ -27,16 +34,28 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
   const [noWhatsapp, setNoWhatsapp] = useState(false)
 
   const dialogRef = useRef<HTMLDialogElement>(null)
+  const catalog = useApi(fetchCatalog)
+  const professions = useMemo(() => catalog.data ?? [], [catalog.data])
+
+  // Profissionais do serviço aberto; carrega de novo ao trocar de serviço
+  const taskKey = selectedTask ? `${selectedTask.profession.id}|${selectedTask.title}` : ''
+  const pros = useApi(
+    () =>
+      selectedTask
+        ? fetchProfessionalsFor(selectedTask.profession.id, selectedTask.title)
+        : Promise.resolve([]),
+    taskKey,
+  )
 
   const results = useMemo(() => {
     const term = normalize(query.trim())
 
-    return getAllTasks().filter(({ title, profession }) => {
+    return getAllTasks(professions).filter(({ title, profession }) => {
       const matchesFilter = filters.length === 0 || filters.includes(profession.id)
       const matchesQuery = !term || normalize(`${title} ${profession.name}`).includes(term)
       return matchesFilter && matchesQuery
     })
-  }, [query, filters])
+  }, [query, filters, professions])
 
   function toggleFilter(id: string) {
     setFilters((current) =>
@@ -55,10 +74,8 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
     setNoWhatsapp(false)
   }
 
-  const taskPros = selectedTask
-    ? professionalsFor(selectedTask.profession.id, selectedTask.title)
-    : []
-  const selectedPrice = selectedTask && selectedPro ? priceFor(selectedPro, selectedTask.title) : null
+  const taskPros = pros.data ?? []
+  const selectedService = selectedTask && selectedPro ? serviceFor(selectedPro, selectedTask.title) : undefined
   const proFirstName = selectedPro ? firstName(selectedPro.name) : ''
   // Sem login, só o primeiro nome
   const proName = selectedPro && isLoggedIn ? selectedPro.name : proFirstName
@@ -128,6 +145,8 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
         <section className="banner" aria-label="Destaques" />
 
         <section aria-label="Profissões">
+          {catalog.error && <LoadError message={catalog.error} onRetry={catalog.reload} />}
+          {catalog.loading && !catalog.data && <Loading />}
           <ul className="profession-grid">
             {professions.map((profession) => {
               const { id, name, image, icon: Icon } = profession
@@ -232,7 +251,10 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
               </button>
             </div>
 
-            {taskPros.length > 0 && (
+            {pros.loading && <Loading label="Buscando profissionais…" />}
+            {pros.error && <LoadError message={pros.error} onRetry={pros.reload} />}
+
+            {!pros.loading && taskPros.length > 0 && (
               <>
                 <p className="sheet-hint">Ordenados pela reputação.</p>
 
@@ -245,7 +267,7 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
 
                 <ul className="pro-list">
                   {taskPros.map((pro) => {
-                    const price = priceFor(pro, selectedTask.title)
+                    const service = serviceFor(pro, selectedTask.title)
                     const name = isLoggedIn ? pro.name : firstName(pro.name)
                     return (
                       <li key={pro.id}>
@@ -257,13 +279,13 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
                             <span className="pro-place">{pro.neighborhood}</span>
                           </span>
                           <span className="pro-price">
-                            {price == null ? (
-                              <small>a combinar</small>
-                            ) : (
+                            {hasPrice(service) ? (
                               <>
                                 <small>média</small>
-                                {isLoggedIn ? formatPrice(price) : <BlurredPrice />}
+                                <PriceValue service={service} />
                               </>
+                            ) : (
+                              <small>a combinar</small>
                             )}
                           </span>
                         </button>
@@ -274,7 +296,7 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
               </>
             )}
 
-            {taskPros.length === 0 && (
+            {!pros.loading && !pros.error && taskPros.length === 0 && (
               <p className="sheet-hint">Ainda não há profissionais para este serviço.</p>
             )}
           </div>
@@ -318,10 +340,10 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
 
             <div className="price-box">
               <span className="price-task">{selectedTask.title}</span>
-              {selectedPrice != null ? (
+              {hasPrice(selectedService) ? (
                 <>
                   <span className="price-value">
-                    {isLoggedIn ? formatPrice(selectedPrice) : <BlurredPrice />}
+                    <PriceValue service={selectedService} />
                   </span>
                   <span className="price-note">
                     Preço médio informado por {proFirstName}. O valor final é combinado na
@@ -384,4 +406,14 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
       />
     </div>
   )
+}
+
+// Há preço informado (mesmo que escondido para quem não entrou)
+function hasPrice(service: OfferedService | undefined): service is OfferedService {
+  return service !== undefined && (service.hidden === true || service.price !== null)
+}
+
+// Sem login o servidor não manda o valor: mostra o preço desfocado de mentira
+function PriceValue({ service }: { service: OfferedService }) {
+  return service.hidden || service.price === null ? <BlurredPrice /> : <>{formatPrice(service.price)}</>
 }

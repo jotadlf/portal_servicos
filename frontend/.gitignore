@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Banco SQLite local (temporário)
+data/
+
+# Saídas do Playwright
+test-results/
+playwright-report/

@@ -1,19 +1,12 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getPlanSettings, updatePlanSettings } from '../features/conta/plano'
-import { getAccount } from '../features/conta/usuario'
-import { findProfession } from '../features/servicos/catalogo'
+import { describe, expect, it, vi } from 'vitest'
+import { dbRow, loginAs, PNG_FILE } from '../test/api-server'
 import { Admin } from './Admin'
 
-const originalSettings = { ...getPlanSettings() }
-afterEach(() => updatePlanSettings(originalSettings))
-
-const admin = () => getAccount('u3')!
-
-async function openTab(name: string) {
-  render(<Admin account={admin()} onLogin={vi.fn()} />)
-  await userEvent.click(screen.getByRole('button', { name }))
+async function openTab(name?: string) {
+  render(<Admin account={await loginAs('admin@exemplo.com')} onLogin={vi.fn()} />)
+  if (name) await userEvent.click(screen.getByRole('button', { name }))
 }
 
 describe('Admin: acesso', () => {
@@ -22,45 +15,52 @@ describe('Admin: acesso', () => {
     expect(screen.getByText('Entre com a conta de administração.')).toBeInTheDocument()
   })
 
-  it('bloqueia quem não administra', () => {
-    render(<Admin account={getAccount('u2')} onLogin={vi.fn()} />)
+  it('bloqueia quem não administra', async () => {
+    render(<Admin account={await loginAs('beatriz@exemplo.com')} onLogin={vi.fn()} />)
     expect(screen.getByText('Esta área é só para a administração do portal.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Painel' })).not.toBeInTheDocument()
   })
 })
 
-describe('Admin: painel', () => {
-  it('mostra os números e os gráficos', () => {
-    render(<Admin account={admin()} onLogin={vi.fn()} />)
-    const kpis = within(screen.getByRole('region', { name: 'Números de agora' }))
-    expect(kpis.getByText('Pessoas cadastradas')).toBeInTheDocument()
-    expect(kpis.getByText('Receita mensal recorrente')).toBeInTheDocument()
+describe('Admin: painel com números do banco', () => {
+  it('mostra os números e os gráficos', async () => {
+    await openTab()
+    const kpis = within(await screen.findByRole('region', { name: 'Números de agora' }))
+    expect(kpis.getByText('Pessoas cadastradas').nextSibling).toHaveTextContent('25')
+    expect(kpis.getByText('Prestadores publicados').nextSibling).toHaveTextContent('24')
     expect(screen.getByRole('region', { name: 'Novos cadastros por mês' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Serviços por modalidade' })).toHaveTextContent('Eletricista')
   })
 
   it('troca o período dos gráficos', async () => {
-    render(<Admin account={admin()} onLogin={vi.fn()} />)
-    expect(screen.getByRole('button', { name: '6 meses' })).toHaveAttribute('aria-pressed', 'true')
-    await userEvent.click(screen.getByRole('button', { name: '12 meses' }))
+    await openTab()
+    await userEvent.click(await screen.findByRole('button', { name: '12 meses' }))
     expect(screen.getByRole('button', { name: '12 meses' })).toHaveAttribute('aria-pressed', 'true')
   })
 })
 
-describe('Admin: modalidades', () => {
-  it('adiciona uma modalidade nova', async () => {
-    await openTab('Modalidades')
-    await userEvent.type(screen.getByLabelText('Nome'), 'Marceneiro')
-    await userEvent.type(screen.getByLabelText(/Serviços sugeridos/), 'Montar móvel{Enter}{Enter}Consertar porta')
+describe('Admin: modalidades gravadas no banco', () => {
+  const fill = async (name: string, tasks: string) => {
+    await userEvent.type(await screen.findByLabelText('Nome'), name)
+    if (tasks) await userEvent.type(screen.getByLabelText(/Serviços sugeridos/), tasks)
     await userEvent.click(screen.getByRole('button', { name: 'Adicionar modalidade' }))
+  }
 
-    expect(screen.getByText('Marceneiro já aparece na página inicial.')).toBeInTheDocument()
-    expect(findProfession('marceneiro')?.tasks).toEqual(['Montar móvel', 'Consertar porta'])
-    expect(screen.getByLabelText('Nome')).toHaveValue('')
+  it('adiciona uma modalidade nova com imagem', async () => {
+    await openTab('Modalidades')
+    await userEvent.upload(await screen.findByLabelText('Imagem da modalidade'), PNG_FILE())
+    await fill('Marceneiro', 'Montar móvel{Enter}{Enter}Consertar porta')
+
+    expect(await screen.findByText('Marceneiro já aparece na página inicial.')).toBeInTheDocument()
+    const saved = dbRow(`SELECT name, tasks, image_id FROM professions WHERE id = 'marceneiro'`)
+    expect(saved).toMatchObject({ name: 'Marceneiro', tasks: JSON.stringify(['Montar móvel', 'Consertar porta']) })
+    expect(saved?.image_id).toBeTruthy()
+    expect(await screen.findByText('10 modalidades no catálogo')).toBeInTheDocument()
   })
 
-  it('valida nome, duplicidade e serviços', async () => {
+  it('valida nome, números, duplicidade e serviços', async () => {
     await openTab('Modalidades')
+    await screen.findByLabelText('Nome')
     const submit = screen.getByRole('button', { name: 'Adicionar modalidade' })
 
     await userEvent.click(submit)
@@ -71,39 +71,46 @@ describe('Admin: modalidades', () => {
     expect(screen.getByText('Já existe uma modalidade com esse nome.')).toBeInTheDocument()
 
     await userEvent.clear(screen.getByLabelText('Nome'))
+    await userEvent.type(screen.getByLabelText('Nome'), 'Pedreiro 2')
+    await userEvent.click(submit)
+    expect(screen.getByText(/Use só letras no nome da modalidade/)).toBeInTheDocument()
+
+    await userEvent.clear(screen.getByLabelText('Nome'))
     await userEvent.type(screen.getByLabelText('Nome'), 'Vidraceiro')
     await userEvent.click(submit)
     expect(screen.getByText(/Informe pelo menos um serviço/)).toBeInTheDocument()
+    expect(dbRow('SELECT count(*) AS n FROM professions')?.n).toBe(9)
   })
 
-  it('remove só depois de confirmar', async () => {
+  it('recusa imagem SVG', async () => {
     await openTab('Modalidades')
-    await userEvent.type(screen.getByLabelText('Nome'), 'Dedetizador')
-    await userEvent.type(screen.getByLabelText(/Serviços sugeridos/), 'Dedetizar casa')
-    await userEvent.click(screen.getByRole('button', { name: 'Adicionar modalidade' }))
+    await userEvent.upload(
+      await screen.findByLabelText('Imagem da modalidade'),
+      new File(['<svg/>'], 'icone.svg', { type: 'image/svg+xml' }),
+      { applyAccept: false },
+    )
+    expect(screen.getByText('Escolha uma imagem PNG ou WebP.')).toBeInTheDocument()
+  })
 
-    await userEvent.click(screen.getByRole('button', { name: 'Remover Dedetizador' }))
+  it('remove só depois de confirmar e apaga os serviços junto', async () => {
+    await openTab('Modalidades')
+    await userEvent.click(await screen.findByRole('button', { name: 'Remover Eletricista' }))
     await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
-    expect(findProfession('dedetizador')).toBeDefined()
+    expect(dbRow(`SELECT count(*) AS n FROM professions WHERE id = 'eletricista'`)?.n).toBe(1)
 
-    await userEvent.click(screen.getByRole('button', { name: 'Remover Dedetizador' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Remover' }))
-    expect(findProfession('dedetizador')).toBeUndefined()
-    expect(screen.queryByText('Dedetizador')).not.toBeInTheDocument()
-  })
-
-  it('avisa quantos serviços somem junto com a modalidade', async () => {
-    await openTab('Modalidades')
     await userEvent.click(screen.getByRole('button', { name: 'Remover Eletricista' }))
-    expect(screen.getByRole('button', { name: /^Remover e apagar \d+ serviços$/ })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /^Remover e apagar \d+ serviços$/ }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Remover Eletricista' })).not.toBeInTheDocument())
+    expect(dbRow(`SELECT count(*) AS n FROM services WHERE profession_id = 'eletricista'`)?.n).toBe(0)
   })
 })
 
-describe('Admin: plano e pagamentos', () => {
+describe('Admin: plano e pagamentos gravados no banco', () => {
   it('salva os novos valores do plano', async () => {
     await openTab('Plano e pagamentos')
-    await userEvent.clear(screen.getByLabelText('Mensal (R$)'))
-    await userEvent.type(screen.getByLabelText('Mensal (R$)'), '25,00')
+    const monthly = await screen.findByLabelText('Mensal (R$)')
+    await userEvent.clear(monthly)
+    await userEvent.type(monthly, '25,00')
     expect(screen.getByText(/O semestral sai 33% mais barato/)).toBeInTheDocument()
 
     await userEvent.clear(screen.getByLabelText('Dias grátis ao publicar'))
@@ -111,28 +118,60 @@ describe('Admin: plano e pagamentos', () => {
     await userEvent.selectOptions(screen.getByLabelText('Gateway de pagamento'), 'stripe')
     await userEvent.click(screen.getByRole('button', { name: 'Salvar configurações' }))
 
-    expect(screen.getByText(/Configurações salvas nesta sessão/)).toBeInTheDocument()
-    expect(getPlanSettings()).toMatchObject({ monthlyPrice: 25, trialDays: 30, gateway: 'stripe' })
+    expect(await screen.findByText(/Configurações salvas/)).toBeInTheDocument()
+    expect(dbRow('SELECT monthly_price, trial_days, gateway FROM plan_settings')).toEqual({
+      monthly_price: 25,
+      trial_days: 30,
+      gateway: 'stripe',
+    })
   })
 
-  it('avisa quando o semestral não compensa', async () => {
+  it('aceita preço com separador de milhar ("1.234,50")', async () => {
     await openTab('Plano e pagamentos')
-    await userEvent.clear(screen.getByLabelText('Semestral (R$)'))
-    await userEvent.type(screen.getByLabelText('Semestral (R$)'), '200')
-    expect(screen.getByText(/o semestral não está mais barato/)).toBeInTheDocument()
+    const semiannual = await screen.findByLabelText('Semestral (R$)')
+    await userEvent.clear(semiannual)
+    await userEvent.type(semiannual, '1.234,50')
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar configurações' }))
+    await screen.findByText(/Configurações salvas/)
+    expect(dbRow('SELECT semiannual_price FROM plan_settings')?.semiannual_price).toBe(1234.5)
+  })
+
+  // Achado da exploração: "19.90" era gravado como 1990
+  it.each([
+    ['19.90', 19.9],
+    ['19,90', 19.9],
+    ['25', 25],
+  ])('entende "%s" como R$ %s', async (typed, expected) => {
+    await openTab('Plano e pagamentos')
+    const monthly = await screen.findByLabelText('Mensal (R$)')
+    await userEvent.clear(monthly)
+    await userEvent.type(monthly, typed)
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar configurações' }))
+    await screen.findByText(/Configurações salvas/)
+    expect(dbRow('SELECT monthly_price FROM plan_settings')?.monthly_price).toBe(expected)
+  })
+
+  it('recusa preço ambíguo ("1.234" sem vírgula)', async () => {
+    await openTab('Plano e pagamentos')
+    const monthly = await screen.findByLabelText('Mensal (R$)')
+    await userEvent.clear(monthly)
+    await userEvent.type(monthly, '1.234')
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar configurações' }))
+    expect(screen.getByText(/Informe os preços em reais/)).toBeInTheDocument()
   })
 
   it('recusa preço inválido, período longo e nenhuma forma de pagamento', async () => {
     await openTab('Plano e pagamentos')
+    const monthly = await screen.findByLabelText('Mensal (R$)')
     const submit = screen.getByRole('button', { name: 'Salvar configurações' })
 
-    await userEvent.clear(screen.getByLabelText('Mensal (R$)'))
-    await userEvent.type(screen.getByLabelText('Mensal (R$)'), 'abc')
+    await userEvent.clear(monthly)
+    await userEvent.type(monthly, 'abc')
     await userEvent.click(submit)
     expect(screen.getByText(/Informe os preços em reais/)).toBeInTheDocument()
 
-    await userEvent.clear(screen.getByLabelText('Mensal (R$)'))
-    await userEvent.type(screen.getByLabelText('Mensal (R$)'), '19,90')
+    await userEvent.clear(monthly)
+    await userEvent.type(monthly, '19,90')
     await userEvent.clear(screen.getByLabelText('Dias grátis ao publicar'))
     await userEvent.type(screen.getByLabelText('Dias grátis ao publicar'), '99')
     await userEvent.click(submit)
@@ -144,6 +183,6 @@ describe('Admin: plano e pagamentos', () => {
     await userEvent.click(screen.getByRole('checkbox', { name: 'Cartão de crédito' }))
     await userEvent.click(submit)
     expect(screen.getByText('Deixe pelo menos uma forma de pagamento ligada.')).toBeInTheDocument()
-    expect(getPlanSettings()).toEqual(originalSettings)
+    expect(dbRow('SELECT monthly_price, trial_days FROM plan_settings')).toEqual({ monthly_price: 19.9, trial_days: 15 })
   })
 })

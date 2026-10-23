@@ -28,6 +28,9 @@
   font-synthesis: none;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Reserva o espaço da barra de rolagem: quando a página cresce e a barra aparece,
+     o conteúdo centralizado não pula para a esquerda */
+  scrollbar-gutter: stable;
 }
 
 * {
@@ -69,7 +72,7 @@ button {
   top: 0;
   display: grid;
   gap: 12px;
-  padding: 14px max(var(--gutter), (100% - var(--width)) / 2);
+  padding: 10px max(var(--gutter), (100% - var(--width)) / 2);
   background: var(--fundo);
   border-bottom: 1px solid var(--linha);
 }
@@ -160,12 +163,12 @@ button {
 
 .app-main {
   display: grid;
-  gap: 28px;
+  gap: 20px;
   width: 100%;
   max-width: calc(var(--width) + 2 * var(--gutter));
   margin-inline: auto;
   /* Espaço extra para o conteúdo não ficar atrás do menu fixo */
-  padding: 20px var(--gutter) calc(48px + var(--menu-height) + env(safe-area-inset-bottom));
+  padding: 14px var(--gutter) calc(32px + var(--menu-height) + env(safe-area-inset-bottom));
 }
 
 /* Menu fixo na parte de baixo */
@@ -205,7 +208,7 @@ button {
 /* Espaço reservado para imagens de destaque */
 .banner {
   width: 100%;
-  height: clamp(110px, 24vw, 200px);
+  height: clamp(90px, 20vw, 170px);
   overflow: hidden;
   border: 1px solid var(--linha);
   border-radius: 12px;
@@ -324,8 +327,8 @@ button {
   gap: 12px;
   align-items: center;
   width: 100%;
-  min-height: 52px;
-  padding: 8px 14px;
+  min-height: 46px;
+  padding: 6px 14px;
   border: 0;
   background: none;
   text-align: left;
@@ -414,8 +417,8 @@ button {
 
 .sheet-body {
   display: grid;
-  gap: 16px;
-  padding: 20px var(--gutter) 24px;
+  gap: 12px;
+  padding: 16px var(--gutter) 20px;
 }
 
 .sheet-head {
@@ -457,7 +460,7 @@ button {
 }
 
 .primary {
-  height: 52px;
+  height: 48px;
   border: 0;
   border-radius: 14px;
   color: var(--reboco);
@@ -507,7 +510,7 @@ button {
   gap: 12px;
   align-items: center;
   width: 100%;
-  padding: 12px 14px;
+  padding: 10px 14px;
   border: 0;
   background: none;
   text-align: left;
@@ -723,16 +726,16 @@ a.icon-button {
 
 .page {
   display: grid;
-  gap: 24px;
+  gap: 16px;
   width: 100%;
   max-width: calc(40rem + 2 * var(--gutter));
   margin-inline: auto;
-  padding: 20px var(--gutter) 120px;
+  padding: 12px var(--gutter) 100px;
 }
 
 .profile-page h1 {
   margin: 0;
-  font-size: 1.75rem;
+  font-size: 1.5rem;
   font-weight: 700;
   font-family: var(--font-titulo);
   line-height: 1.15;
@@ -740,7 +743,7 @@ a.icon-button {
 
 .page-title {
   margin: 0;
-  font-size: 1.75rem;
+  font-size: 1.5rem;
   font-weight: 700;
   font-family: var(--font-titulo);
   line-height: 1.15;
@@ -790,15 +793,15 @@ a.icon-button {
   gap: 12px;
   align-items: center;
   justify-content: space-between;
-  min-height: 52px;
-  padding: 8px 14px;
+  min-height: 46px;
+  padding: 6px 14px;
   font-size: 0.9375rem;
 }
 
 .review {
   display: grid;
   gap: 4px;
-  padding: 12px 14px;
+  padding: 10px 14px;
   font-size: 0.9375rem;
 }
 
@@ -902,12 +905,12 @@ a.icon-button {
 }
 
 .form {
-  gap: 16px;
+  gap: 12px;
 }
 
 .field {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   font-size: 0.8125rem;
   font-weight: 500;
 }
@@ -916,7 +919,7 @@ a.icon-button {
 .field select,
 .field textarea {
   width: 100%;
-  padding: 10px 12px;
+  padding: 8px 12px;
   border: 1px solid var(--linha);
   border-radius: 12px;
   background: var(--superficie);
@@ -934,6 +937,42 @@ a.icon-button {
 .price-input input:focus {
   outline: none;
   border-color: var(--grafite);
+}
+
+/* Senha com o botão do olho dentro do campo, à direita */
+.password-input {
+  position: relative;
+  display: block;
+}
+
+.password-input input {
+  padding-right: 48px;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 10px;
+  color: var(--cimento);
+  background: none;
+  transform: translateY(-50%);
+}
+
+.password-toggle:hover,
+.password-toggle[aria-pressed='true'] {
+  color: var(--grafite);
+}
+
+/* Campo vazio ou inválido: contorno vermelho, inclusive com o foco nele */
+.field input[aria-invalid='true'] {
+  border-color: var(--erro);
+  box-shadow: 0 0 0 1px var(--erro);
 }
 
 .form-actions {
@@ -1111,10 +1150,30 @@ a.icon-button {
 
 /* Perfil: foto e endereço */
 
+/* Foto à esquerda; botão e aviso empilhados à direita */
 .photo-field {
-  display: flex;
-  gap: 16px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 16px;
   align-items: center;
+}
+
+.photo-field .avatar {
+  grid-row: span 2;
+}
+
+.photo-field > button {
+  align-self: end;
+  justify-self: start;
+}
+
+.photo-field > small {
+  align-self: start;
+}
+
+/* Sem foto ao salvar: contorno vermelho em volta do avatar */
+.photo-field.is-invalid .avatar {
+  box-shadow: 0 0 0 2px var(--erro);
 }
 
 .address {
@@ -1150,15 +1209,35 @@ a.icon-button {
 
 /* Entrar e criar conta */
 
+/* Entrar e Criar conta: mais compactas, para o formulário caber com menos rolagem */
 .auth {
+  gap: 14px;
   max-width: calc(26rem + 2 * var(--gutter));
+  padding-top: 12px;
+  padding-bottom: 32px;
 }
 
 .auth-head {
   display: grid;
-  gap: 8px;
+  gap: 4px;
   justify-items: center;
   text-align: center;
+}
+
+.auth .page-title {
+  font-size: 1.375rem;
+}
+
+.auth .form {
+  gap: 10px;
+}
+
+.auth .social-button {
+  height: 42px;
+}
+
+.auth .primary {
+  height: 46px;
 }
 
 .social {
@@ -1184,12 +1263,6 @@ a.icon-button {
   border-color: var(--grafite);
 }
 
-.social-apple {
-  border-color: #000;
-  color: #fff;
-  background: #000;
-}
-
 .auth-divider {
   display: flex;
   gap: 12px;
@@ -1207,29 +1280,132 @@ a.icon-button {
   content: '';
 }
 
+/* Cartão "Também quero oferecer serviços": ícone, texto e chave liga/desliga */
 .provider-option {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px 12px;
+  align-items: center;
   padding: 12px 14px;
-  border: 1px solid var(--azulejo-linha);
-  border-radius: 14px;
+  border: 1px dashed var(--azulejo-linha);
+  border-radius: 16px;
   background: var(--superficie);
   cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s;
 }
 
-.provider-option input {
+.provider-option:hover {
+  border-color: var(--azulejo);
+}
+
+.provider-option:has(.switch:checked) {
+  border-style: solid;
+  border-color: var(--azulejo);
+  background: var(--azulejo-tom);
+}
+
+.provider-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  color: var(--azulejo);
+  background: var(--azulejo-tom);
+}
+
+.provider-option:has(.switch:checked) .provider-icon {
+  color: var(--reboco);
+  background: var(--azulejo);
+}
+
+.provider-text {
+  display: grid;
+  gap: 2px;
+  font-size: 0.9375rem;
+}
+
+.provider-text > small {
+  color: var(--cimento);
+  font-size: 0.8125rem;
+}
+
+/* Preço numa linha própria, começando junto do texto e indo até a borda */
+.provider-option > .signup-price,
+.provider-option > .signup-price-after {
+  grid-column: 2 / -1;
+}
+
+.switch {
+  position: relative;
   flex: none;
+  width: 44px;
+  height: 26px;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--linha);
+  appearance: none;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.switch::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
   width: 20px;
   height: 20px;
-  margin: 1px 0 0;
-  accent-color: var(--azulejo);
+  border-radius: 50%;
+  background: var(--reboco);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+  content: '';
+  transition: transform 0.15s;
 }
 
-.provider-option > span {
+.switch:checked {
+  background: var(--azulejo);
+}
+
+.switch:checked::after {
+  transform: translateX(18px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .provider-option,
+  .switch,
+  .switch::after {
+    transition: none;
+  }
+}
+
+.signup-price {
   display: grid;
-  gap: 8px;
-  font-size: 0.9375rem;
+  gap: 4px;
+  justify-items: start;
+}
+
+/* O período gratuito é o destaque da oferta */
+.signup-free {
+  padding: 4px 12px;
+  border-radius: 999px;
+  color: var(--grafite);
+  background: var(--metro);
+  font-family: var(--font-titulo);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.signup-price-after {
+  color: var(--cimento);
+  font-size: 0.8125rem;
+}
+
+.signup-price-after strong {
+  color: var(--azulejo);
 }
 
 
@@ -1344,13 +1520,13 @@ a.icon-button {
 
 .checkout {
   display: grid;
-  gap: 24px;
+  gap: 16px;
 }
 
 .plan-card {
   display: grid;
   gap: 6px;
-  padding: 20px;
+  padding: 16px;
   border-radius: 18px;
   color: #fff;
   background: var(--azulejo);
@@ -1404,7 +1580,7 @@ a.icon-button {
   display: flex;
   gap: 12px;
   align-items: center;
-  padding: 12px 14px;
+  padding: 10px 14px;
   border: 1px solid var(--linha);
   border-radius: 14px;
   background: var(--superficie);
