@@ -10,6 +10,13 @@ export function setApiBase(url: string) {
   base = url
 }
 
+// Quem entrega as respostas: a rede, ou a API rodando na própria página (demonstração do GitHub Pages)
+type Transport = (path: string, init: RequestInit) => Promise<Response>
+let transport: Transport = (path, init) => fetch(base + path, init)
+export function setApiTransport(next: Transport) {
+  transport = next
+}
+
 export class ApiError extends Error {
   status: number
   // Mensagem por campo, para mostrar embaixo de cada um
@@ -45,7 +52,7 @@ export async function api<T>(method: string, path: string, body?: unknown): Prom
   const token = getToken()
   let response: Response
   try {
-    response = await fetch(base + path, {
+    response = await transport(path, {
       method,
       headers: {
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
