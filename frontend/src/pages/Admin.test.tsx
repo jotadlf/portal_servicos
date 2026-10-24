@@ -26,16 +26,16 @@ describe('Admin: painel com números do banco', () => {
   it('mostra os números e os gráficos', async () => {
     await openTab()
     const kpis = within(await screen.findByRole('region', { name: 'Números de agora' }))
-    expect(kpis.getByText('Pessoas cadastradas').nextSibling).toHaveTextContent('25')
+    expect(kpis.getByText('Pessoas').nextSibling).toHaveTextContent('25')
     expect(kpis.getByText('Prestadores publicados').nextSibling).toHaveTextContent('24')
-    expect(screen.getByRole('region', { name: 'Novos cadastros por mês' })).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'Serviços por modalidade' })).toHaveTextContent('Eletricista')
+    expect(screen.getByRole('region', { name: 'Prestadores' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Top modalidades' })).toHaveTextContent('Eletricista')
   })
 
-  it('troca o período dos gráficos', async () => {
+  it('mostra só as 5 modalidades com mais serviços', async () => {
     await openTab()
-    await userEvent.click(await screen.findByRole('button', { name: '12 meses' }))
-    expect(screen.getByRole('button', { name: '12 meses' })).toHaveAttribute('aria-pressed', 'true')
+    const top = await screen.findByRole('region', { name: 'Top modalidades' })
+    expect(within(top).getAllByRole('listitem')).toHaveLength(5)
   })
 })
 
