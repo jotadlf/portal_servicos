@@ -313,8 +313,9 @@ button {
 
 .profession-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
-  gap: 12px;
+  /* No celular cabem 4 por linha, para o "Exibir" aparecer sem rolar a tela */
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -373,6 +374,7 @@ button {
 @media (min-width: 720px) {
   .profession-grid {
     grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+    gap: 12px;
   }
 }
 
