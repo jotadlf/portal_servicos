@@ -18,6 +18,8 @@ export class ApiError extends Error {
 
 const OFFLINE = 'Não foi possível falar com o servidor. Confira a conexão e tente de novo.'
 const GENERIC = 'Algo deu errado. Tente de novo.'
+// A mesma de interno.conta_atual(), no banco
+const SIGNED_OUT = 'Entre na sua conta para continuar.'
 
 // Token da sessão guardada nesta aba, se houver
 export function getToken(): string | undefined {
@@ -42,6 +44,8 @@ function toApiError(error: RpcError) {
     }
     return new ApiError(Number(error.hint) || 400, error.message, fields)
   }
+  // Função que exige conta, chamada sem login: o banco nem deixa executar
+  if (error.code === '42501') return new ApiError(401, SIGNED_OUT)
   // Sem código: a resposta nem chegou (rede fora, servidor fora do ar)
   if (!error.code) return new ApiError(0, OFFLINE)
   return new ApiError(500, GENERIC)

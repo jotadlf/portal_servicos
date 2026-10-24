@@ -38,14 +38,6 @@ export function Entrar({ mode, onSignedIn, guestHref = routes.inicio }: EntrarPr
               ? 'Com uma conta você contrata serviços e, se quiser, oferece os seus.'
               : 'Para ver preços e falar com os profissionais pelo WhatsApp.'}
           </p>
-          {/* Demonstração do GitHub Pages: contas de exemplo, dados só neste aparelho */}
-          {import.meta.env.MODE === 'demo' && !isSignup && (
-            <p className="notice">
-              Demonstração: os dados ficam só neste aparelho. Contas de teste, todas com a senha{' '}
-              <b>teste123</b>: carlos@exemplo.com (prestador), beatriz@exemplo.com (cliente) e
-              admin@exemplo.com (administração).
-            </p>
-          )}
         </div>
 
         <SocialButtons />

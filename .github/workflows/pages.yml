@@ -1,7 +1,8 @@
 name: GitHub Pages
 
-# Publica a demonstração em https://jotadlf.github.io/portal_servicos/
+# Publica o portal em https://jotadlf.github.io/portal_servicos/
 # O Pages só serve arquivos; os dados vêm do projeto Supabase (o mesmo de frontend/.env.local).
+# A URL e a chave ficam nos secrets VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY do repositório.
 on:
   push:
     branches: [main]
@@ -37,11 +38,11 @@ jobs:
         run: npm ci
 
       # A chave publishable é feita para ficar no navegador: o banco só abre as funções RPC
-      - name: Build da demonstração
+      - name: Build (na subpasta do Pages)
         run: npm run build:pages
         env:
-          VITE_SUPABASE_URL: https://tyunvnhayyxidzmdbjui.supabase.co
-          VITE_SUPABASE_ANON_KEY: sb_publishable_RLqunTYloNVZwRDmYffVsQ_pZY9O7-J
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - uses: actions/configure-pages@v5
 

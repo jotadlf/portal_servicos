@@ -19,11 +19,8 @@ function supabaseCsp(url: string | undefined): Plugin {
 }
 
 export default defineConfig(({ mode }) => {
-  // Demonstração no GitHub Pages: o mesmo app, numa subpasta (jotadlf.github.io/portal_servicos/)
-  const isDemo = mode === 'demo'
   const env = { ...loadEnv(mode, process.cwd()), ...process.env }
   return {
-    base: isDemo ? '/portal_servicos/' : '/',
     test: {
       // e2e/ é do Playwright, com o próprio comando
       exclude: ['e2e/**', 'node_modules/**', 'dist/**'],

@@ -80,5 +80,6 @@ npm run build
 npm run preview
 ```
 
-O service worker e o manifesto do PWA são gerados no build. A demonstração do GitHub Pages
-(`npm run build:pages`) usa o mesmo projeto Supabase.
+O service worker e o manifesto do PWA são gerados no build. O site publicado no GitHub Pages
+(`npm run build:pages`, o mesmo build numa subpasta) usa o mesmo projeto Supabase; a URL e a
+chave vêm dos secrets `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` do repositório.

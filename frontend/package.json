@@ -7,7 +7,7 @@
     "dev": "vite",
     "dev:celular": "vite --host",
     "build": "tsc -b && vite build",
-    "build:pages": "tsc -b && vite build --mode demo --outDir dist-pages",
+    "build:pages": "tsc -b && vite build --base /portal_servicos/ --outDir dist-pages",
     "lint": "oxlint",
     "test": "vitest run",
     "test:watch": "vitest",

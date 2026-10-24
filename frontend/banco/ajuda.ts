@@ -61,6 +61,8 @@ export async function call(fn: string, p?: unknown, client: SupabaseClient = new
   if (error.code === 'P0001') {
     return { status: Number(error.hint), body: { error: error.message, fields: JSON.parse(error.details || '{}') } }
   }
+  // Sem login, as funções que exigem conta nem executam (como o app, trata como 401)
+  if (error.code === '42501') return { status: 401, body: { error: error.message, code: error.code } }
   return { status: 500, body: { error: error.message, code: error.code } }
 }
 
