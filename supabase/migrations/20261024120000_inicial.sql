@@ -185,14 +185,15 @@ create policy "fotos: apagar as próprias" on storage.objects
 
 -- ---------- apoio: erros e leitura dos dados recebidos ----------
 
-create function interno.erro(status integer, mensagem text, campos jsonb default null) returns void
+-- Campos em json (não jsonb): a tela mostra na ordem em que foram listados
+create function interno.erro(status integer, mensagem text, campos json default null) returns void
 language plpgsql
 as $$
 begin
   raise exception using
     errcode = 'P0001',
     message = mensagem,
-    detail = coalesce(campos, '{}'::jsonb)::text,
+    detail = coalesce(campos, '{}'::json)::text,
     hint = status::text;
 end
 $$;
@@ -202,7 +203,7 @@ create function interno.erro_campo(campo text, mensagem text, status integer def
 language plpgsql
 as $$
 begin
-  perform interno.erro(status, mensagem, jsonb_build_object(campo, mensagem));
+  perform interno.erro(status, mensagem, json_build_object(campo, mensagem));
 end
 $$;
 
@@ -799,7 +800,8 @@ declare
   conta public.profiles := interno.conta_atual();
   pro public.professionals := interno.prestador_proprio();
   dados jsonb := interno.objeto(p);
-  faltando jsonb := '{}'::jsonb;
+  campos text[] := '{}';
+  faltando text[] := '{}';
   ajustes public.plan_settings;
   plano text := dados ->> 'plan';
   forma text := dados ->> 'method';
@@ -811,16 +813,19 @@ begin
 
   -- Os mesmos requisitos do cartão "Publicar", conferidos aqui
   if pro.photo is null then
-    faltando := faltando || '{"photo": "Adicione uma foto no Perfil."}';
+    campos := campos || 'photo'::text;
+    faltando := faltando || 'Adicione uma foto no Perfil.'::text;
   end if;
   if pro.whatsapp = '' then
-    faltando := faltando || '{"phone": "Cadastre seu WhatsApp no Perfil."}';
+    campos := campos || 'phone'::text;
+    faltando := faltando || 'Cadastre seu WhatsApp no Perfil.'::text;
   end if;
   if not exists (select 1 from public.services where professional_id = pro.id) then
-    faltando := faltando || '{"services": "Cadastre pelo menos um serviço."}';
+    campos := campos || 'services'::text;
+    faltando := faltando || 'Cadastre pelo menos um serviço.'::text;
   end if;
-  if faltando <> '{}'::jsonb then
-    perform interno.erro(400, 'Falta completar o perfil antes de publicar.', faltando);
+  if cardinality(campos) > 0 then
+    perform interno.erro(400, 'Falta completar o perfil antes de publicar.', json_object(campos, faltando));
   end if;
 
   -- A administração usa o portal inteiro sem contratar plano: publica sem plano nem pagamento
