@@ -368,7 +368,11 @@ function NovaModalidade({ professions, onAdded }: { professions: Profession[]; o
 
       <div aria-live="polite">
         {error && <p className="form-error">{error}</p>}
-        {added && <p className="form-ready">{added} já aparece na página inicial.</p>}
+        {added && (
+          <p className="form-ready">
+            {added} foi adicionada. Aparece na página inicial quando algum prestador oferecer um serviço dela.
+          </p>
+        )}
       </div>
 
       <button type="submit" className="primary" disabled={busy}>

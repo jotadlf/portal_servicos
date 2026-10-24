@@ -29,12 +29,34 @@ describe('Inicio: busca', () => {
     expect(screen.queryByRole('button', { name: 'Exibir' })).not.toBeInTheDocument()
   })
 
-  it('mostra as modalidades gravadas no banco, inclusive as novas', async () => {
-    await dbExec(`INSERT into public.modalidades (id, nome, sugestoes, posicao) VALUES ('vidraceiro', 'Vidraceiro', '{"Trocar vidro"}', 9)`)
+  it('mostra as modalidades novas assim que algum prestador publicado oferece o serviço', async () => {
+    await dbExec(`INSERT into public.modalidades (id, nome, sugestoes, posicao) VALUES ('vidraceiro', 'Vidraceiro', '{"Trocar vidro","Instalar box"}', 9)`)
+    await dbExec(`INSERT into public.servicos (prestador_id, modalidade_id, nome, posicao) VALUES ('p1', 'vidraceiro', 'Trocar vidro', 9)`)
     await renderInicio()
     await userEvent.click(screen.getByRole('button', { name: 'Vidraceiro' }))
     await userEvent.click(screen.getByRole('button', { name: 'Exibir' }))
     expect(screen.getByRole('button', { name: /Trocar vidro/ })).toBeInTheDocument()
+    // Sugestão que nenhum prestador oferece não aparece
+    expect(screen.queryByRole('button', { name: /Instalar box/ })).not.toBeInTheDocument()
+  })
+
+  it('modalidade sem prestador publicado não aparece', async () => {
+    await dbExec(`INSERT into public.modalidades (id, nome, sugestoes, posicao) VALUES ('vidraceiro', 'Vidraceiro', '{"Trocar vidro"}', 9)`)
+    await dbExec(`update public.prestadores set status = 'rascunho' where id = 'p23'`)
+    await dbExec(`delete from public.servicos where prestador_id = 'p24'`)
+    await renderInicio()
+    expect(screen.queryByRole('button', { name: 'Vidraceiro' })).not.toBeInTheDocument()
+    // Chaveiro: um prestador virou rascunho e o outro não tem mais serviços
+    expect(screen.queryByRole('button', { name: 'Chaveiro' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Eletricista' })).toBeInTheDocument()
+  })
+
+  it('sem nenhum serviço oferecido, avisa que o portal ainda está vazio', async () => {
+    await dbExec(`update public.prestadores set status = 'rascunho'`)
+    // Sem renderInicio: ele espera o card de Eletricista, que aqui não aparece
+    render(<Inicio isLoggedIn={false} isAdmin={false} userName="" onLogin={vi.fn()} onLogout={vi.fn()} />)
+    expect(await screen.findByText('Ainda não há serviços no portal. Volte em breve.')).toBeInTheDocument()
+    expect(screen.queryByText('Escolha uma ou mais profissões e toque em Exibir.')).not.toBeInTheDocument()
   })
 
   it('escolher a profissão só mostra o Exibir; a lista abre em outra tela', async () => {
@@ -234,12 +256,11 @@ describe('Inicio: profissionais', () => {
     expect(sheet().queryByRole('button', { name: /^Carlos/ })).not.toBeInTheDocument()
   })
 
-  it('serviço sem profissionais avisa', async () => {
+  it('serviço que ninguém oferece não aparece na busca', async () => {
     await dbExec(`delete from public.servicos where nome = 'Plantar grama'`)
     await renderInicio()
     await userEvent.type(screen.getByRole('searchbox'), 'Plantar grama')
-    await userEvent.click(screen.getByRole('button', { name: /Plantar grama/ }))
-    expect(await sheet().findByText('Ainda não há profissionais para este serviço.')).toBeInTheDocument()
+    expect(screen.getByText('Nenhum serviço encontrado para essa busca.')).toBeInTheDocument()
   })
 })
 

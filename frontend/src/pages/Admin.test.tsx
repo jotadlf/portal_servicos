@@ -51,7 +51,7 @@ describe('Admin: modalidades gravadas no banco', () => {
     await userEvent.upload(await screen.findByLabelText('Imagem da modalidade'), PNG_FILE())
     await fill('Marceneiro', 'Montar móvel{Enter}{Enter}Consertar porta')
 
-    expect(await screen.findByText('Marceneiro já aparece na página inicial.')).toBeInTheDocument()
+    expect(await screen.findByText(/^Marceneiro foi adicionada\./)).toBeInTheDocument()
     const saved = await dbRow(`select nome, sugestoes, imagem from public.modalidades where id = 'marceneiro'`)
     expect(saved).toMatchObject({ nome: 'Marceneiro', sugestoes: ['Montar móvel', 'Consertar porta'] })
     expect(saved?.imagem).toMatch(/^modalidades\//)

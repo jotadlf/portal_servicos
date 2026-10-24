@@ -28,18 +28,18 @@ test.describe('Administração real', () => {
     await expect(page.getByText(/Configurações salvas/)).toBeVisible()
   })
 
-  test('modalidade criada aparece no início e some ao remover', async ({ page }) => {
+  test('modalidade criada só aparece no início quando algum prestador oferece; some ao remover', async ({ page }) => {
     const name = uniqueName('Vidraceiro')
     await page.getByRole('button', { name: 'Modalidades' }).click()
     await page.getByLabel('Nome').fill(name)
     await page.getByLabel(/Serviços sugeridos/).fill('Trocar vidro de janela')
     await page.getByRole('button', { name: 'Adicionar modalidade' }).click()
-    await expect(page.getByText(`${name} já aparece na página inicial.`)).toBeVisible()
+    await expect(page.getByText(`${name} foi adicionada.`, { exact: false })).toBeVisible()
 
+    // Sem prestador, não aparece no início
     await page.goto('/#/')
-    await page.getByRole('button', { name }).click()
-    await page.getByRole('button', { name: 'Exibir' }).click()
-    await expect(page.getByRole('button', { name: /Trocar vidro de janela/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Eletricista' })).toBeVisible()
+    await expect(page.getByRole('button', { name })).toHaveCount(0)
 
     await page.goto('/#/admin')
     await page.getByRole('button', { name: 'Modalidades' }).click()

@@ -59,6 +59,11 @@ export async function fetchCatalog() {
   return (await rpc<ProfessionData[]>('catalogo')).map(withVisual)
 }
 
+// Página inicial: só o que algum prestador publicado oferece
+export async function fetchOfferedCatalog() {
+  return (await rpc<ProfessionData[]>('catalogo', { oferecidos: true })).map(withVisual)
+}
+
 export type Task = { title: string; profession: Profession }
 
 export function getAllTasks(professions: Profession[]): Task[] {

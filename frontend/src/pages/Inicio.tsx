@@ -14,7 +14,7 @@ import {
   type OfferedService,
   type Professional,
 } from '../features/profissionais/prestadores'
-import { fetchCatalog, getAllTasks, type Task } from '../features/servicos/catalogo'
+import { fetchOfferedCatalog, getAllTasks, type Task } from '../features/servicos/catalogo'
 import { useApi } from '../hooks/useApi'
 import { routes } from '../hooks/useHashRoute'
 import { firstName, formatPrice, greeting, normalize } from '../lib/format'
@@ -72,7 +72,7 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
   const headerRef = useRef<HTMLElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const dialogRef = useRef<HTMLDialogElement>(null)
-  const catalog = useApi(fetchCatalog)
+  const catalog = useApi(fetchOfferedCatalog)
   const professions = useMemo(() => catalog.data ?? [], [catalog.data])
 
   // Profissionais do serviço aberto; carrega de novo ao trocar de serviço
@@ -359,7 +359,11 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
               </button>
             )}
 
-            {filters.length === 0 && (
+            {catalog.data && professions.length === 0 && (
+              <p className="start-hint">Ainda não há serviços no portal. Volte em breve.</p>
+            )}
+
+            {filters.length === 0 && professions.length > 0 && (
               <p className="start-hint">Escolha uma ou mais profissões e toque em Exibir.</p>
             )}
           </main>
