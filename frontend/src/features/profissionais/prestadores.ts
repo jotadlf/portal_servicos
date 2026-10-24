@@ -1,5 +1,5 @@
-// Prestadores, serviços, avaliações e contatos, lidos e gravados pela API.
-import { api } from '../../lib/api'
+// Prestadores, serviços, avaliações e contatos, lidos e gravados pelas funções do banco.
+import { imageUrl, rpc } from '../../lib/api'
 import type { PlanId } from '../conta/plano'
 
 // Serviço oferecido e o preço médio informado pelo profissional (em reais).
@@ -78,47 +78,47 @@ export function professionIdsOf(pro: Professional) {
   return [...new Set(pro.services.map((service) => service.professionId))]
 }
 
-// Publicados que fazem o serviço, da melhor reputação para a pior (ordenados no servidor)
-export function fetchProfessionalsFor(professionId: string, task: string) {
-  const query = new URLSearchParams({ profissao: professionId, servico: task })
-  return api<Professional[]>('GET', `/api/prestadores?${query}`)
+// A foto vem do banco como caminho no Storage
+const withPhoto = (pro: Professional): Professional => ({ ...pro, photo: imageUrl(pro.photo) })
+
+// Publicados que fazem o serviço, da melhor reputação para a pior (ordenados no banco)
+export async function fetchProfessionalsFor(professionId: string, task: string) {
+  return (await rpc<Professional[]>('prestadores', { profissao: professionId, servico: task })).map(withPhoto)
 }
 
-export function fetchProfessional(id: string) {
-  return api<Professional>('GET', `/api/prestadores/${encodeURIComponent(id)}`)
+export async function fetchProfessional(id: string) {
+  return withPhoto(await rpc<Professional>('prestador', { id }))
 }
 
 export function fetchReviews(id: string) {
-  return api<Review[]>('GET', `/api/prestadores/${encodeURIComponent(id)}/avaliacoes`)
+  return rpc<Review[]>('avaliacoes', { id })
 }
 
 // Perfil de prestador de quem está na conta
-export function fetchOwnProfessional() {
-  return api<Professional>('GET', '/api/prestador')
+export async function fetchOwnProfessional() {
+  return withPhoto(await rpc<Professional>('meu_prestador'))
 }
 
-export function saveServices(services: OfferedService[]) {
-  return api<Professional>('PUT', '/api/prestador/servicos', {
+export async function saveServices(services: OfferedService[]) {
+  const saved = await rpc<Professional>('salvar_servicos', {
     services: services.map(({ professionId, name, price, unit }) => ({ professionId, name, price, unit })),
   })
+  return withPhoto(saved)
 }
 
 export function saveAbout(about: string) {
-  return api<{ about: string }>('PATCH', '/api/prestador/sobre', { about })
+  return rpc<{ about: string }>('salvar_sobre', { about })
 }
 
-// Sem plano nem pagamento: só a administração (o servidor recusa para os demais)
+// Sem plano nem pagamento: só a administração (o banco recusa para os demais)
 export function publishProfile(plan?: PlanId, method?: 'pix' | 'cartao') {
-  return api<{ status: 'publicado'; plan?: PlanId; trialEndsAt?: string }>('POST', '/api/prestador/publicar', {
-    plan,
-    method,
-  })
+  return rpc<{ status: 'publicado'; plan?: PlanId; trialEndsAt?: string }>('publicar', { plan, method })
 }
 
 export function fetchContacts() {
-  return api<ContactRequest[]>('GET', '/api/prestador/contatos')
+  return rpc<ContactRequest[]>('meus_contatos')
 }
 
 export function markContactAnswered(id: string) {
-  return api('PATCH', `/api/prestador/contatos/${encodeURIComponent(id)}`, {})
+  return rpc('marcar_respondido', { id })
 }

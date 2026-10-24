@@ -1,63 +1,40 @@
 /// <reference types="vitest/config" />
-import { fileURLToPath } from 'node:url'
 import react from '@vitejs/plugin-react'
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-const here = (path: string) => fileURLToPath(new URL(path, import.meta.url))
-
-// Demonstração do GitHub Pages: o Pages só serve arquivos, então a API de server/ roda
-// dentro da página. Os módulos do Node que ela usa trocam por versões de navegador.
-function demo(enabled: boolean): Plugin {
-  const stub = '\0virtual:demo-stub'
+// A CSP do index.html já libera *.supabase.co. Supabase em outro endereço (o local dos testes,
+// http://127.0.0.1:54321) entra na CSP só quando é ele o configurado.
+function supabaseCsp(url: string | undefined): Plugin {
   return {
-    name: 'portal-demo',
-    resolveId(id) {
-      if (id !== 'virtual:demo') return undefined
-      return enabled ? here('./src/demo/start.ts') : stub
-    },
-    load(id) {
-      return id === stub ? 'export async function startDemo() {}' : undefined
-    },
-    // O SQLite da demonstração é WebAssembly, que a CSP só deixa rodar com 'wasm-unsafe-eval'
+    name: 'portal-supabase-csp',
     transformIndexHtml(html) {
-      return enabled ? html.replace("script-src 'self'", "script-src 'self' 'wasm-unsafe-eval'") : html
+      if (!url || /^https:\/\/[^/]+\.supabase\.co\/?$/.test(url)) return html
+      const origin = new URL(url).origin
+      return html
+        .replace("img-src 'self'", `img-src 'self' ${origin}`)
+        .replace("connect-src 'self'", `connect-src 'self' ${origin}`)
     },
   }
 }
 
 export default defineConfig(({ mode }) => {
+  // Demonstração no GitHub Pages: o mesmo app, numa subpasta (jotadlf.github.io/portal_servicos/)
   const isDemo = mode === 'demo'
-  const alias: Record<string, string> = isDemo
-    ? {
-        'node:crypto': here('./src/demo/shims/node-crypto.ts'),
-        'node:util': here('./src/demo/shims/node-util.ts'),
-        'node:zlib': here('./src/demo/shims/node-zlib.ts'),
-        'node:sqlite': here('./src/demo/shims/node-sqlite.ts'),
-        'node:fs': here('./src/demo/shims/node-fs.ts'),
-        'node:path': here('./src/demo/shims/node-fs.ts'),
-        'node:url': here('./src/demo/shims/node-fs.ts'),
-      }
-    : {}
+  const env = { ...loadEnv(mode, process.cwd()), ...process.env }
   return {
-    // No Pages o app fica em jotadlf.github.io/portal_servicos/
     base: isDemo ? '/portal_servicos/' : '/',
-    // A API local (server/, SQLite) roda em outra porta; o app a chama em /api, na mesma origem
-    server: {
-      proxy: {
-        '/api': `http://127.0.0.1:${process.env.API_PORT ?? 3001}`,
-      },
-    },
-    resolve: { alias },
     test: {
       // e2e/ é do Playwright, com o próprio comando
       exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
       // Navegador simulado para os testes de tela
       environment: 'jsdom',
       setupFiles: ['./src/test/setup.ts'],
+      // Um Supabase local só, voltado aos dados de exemplo antes de cada teste: um arquivo por vez
+      fileParallelism: false,
     },
     plugins: [
-      demo(isDemo),
+      supabaseCsp(env.VITE_SUPABASE_URL),
       react(),
       VitePWA({
         registerType: 'autoUpdate',
@@ -82,8 +59,7 @@ export default defineConfig(({ mode }) => {
           ],
         },
         workbox: {
-          // wasm: o SQLite da demonstração, para abrir mesmo sem internet
-          globPatterns: ['**/*.{js,css,html,svg,png,woff2,wasm}'],
+          globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         },
       }),
     ],

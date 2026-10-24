@@ -1,13 +1,12 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { trialEndDate } from '../features/conta/plano'
 import type { Account } from '../features/conta/usuario'
-import { apiServer, dbRow, loginAs, newAccount, readyProvider } from '../test/api-server'
+import { dbExec, dbRow, loginAs, newAccount, readyProvider, todayInBrazil } from '../test/supabase'
 import { Publicar } from './Publicar'
 
 const renderPublicar = (account?: Account) => render(<Publicar account={account} onLogin={vi.fn()} />)
-const setPlan = (sql: string) => apiServer().db.prepare(`UPDATE plan_settings SET ${sql}`).run()
+const setPlan = (sql: string) => dbExec(`update public.plan_settings set ${sql}`)
 const checkout = () => screen.findByRole('heading', { name: 'Publique seu perfil' })
 
 describe('Publicar', () => {
@@ -42,7 +41,7 @@ describe('Publicar', () => {
 
   it('administração publica direto, sem plano nem pagamento', async () => {
     const account = await readyProvider()
-    apiServer().db.prepare('UPDATE accounts SET is_admin = 1 WHERE id = ?').run(account.id)
+    await dbExec('update public.profiles set is_admin = true where id = $1', account.id)
     renderPublicar({ ...account, isAdmin: true })
 
     await screen.findByText(/Como administrador, você publica sem plano e sem pagamento/)
@@ -51,7 +50,7 @@ describe('Publicar', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Publicar perfil' }))
     await waitFor(() => expect(window.location.hash).toBe('#/servicos'))
-    expect(dbRow('SELECT status, plan, payment_method FROM professionals WHERE account_id = ?', account.id)).toEqual({
+    expect((await dbRow('select status, plan, payment_method from public.professionals where account_id = $1', account.id))).toEqual({
       status: 'publicado',
       plan: null,
       payment_method: null,
@@ -67,11 +66,12 @@ describe('Publicar', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Começar 15 dias grátis e publicar' }))
 
     await waitFor(() => expect(window.location.hash).toBe('#/servicos'))
-    expect(dbRow('SELECT status, plan, payment_method, trial_ends_at FROM professionals WHERE account_id = ?', account.id)).toEqual({
+    expect((await dbRow('select status, plan, payment_method, trial_ends_at from public.professionals where account_id = $1', account.id))).toEqual({
       status: 'publicado',
       plan: 'semestral',
       payment_method: 'cartao',
-      trial_ends_at: trialEndDate({ trialDays: 15 } as never),
+      // O banco conta no fuso do portal
+      trial_ends_at: todayInBrazil(15),
     })
   })
 
@@ -84,7 +84,7 @@ describe('Publicar', () => {
   })
 
   it('mostra só as formas de pagamento ligadas na administração', async () => {
-    setPlan('pix_enabled = 0')
+    await setPlan('pix_enabled = false')
     renderPublicar(await readyProvider())
     await checkout()
     expect(screen.queryByRole('radio', { name: /Pix/ })).not.toBeInTheDocument()
@@ -92,7 +92,7 @@ describe('Publicar', () => {
   })
 
   it('não deixa publicar sem forma de pagamento', async () => {
-    setPlan('pix_enabled = 0, card_enabled = 0')
+    await setPlan('pix_enabled = false, card_enabled = false')
     renderPublicar(await readyProvider())
     await checkout()
     expect(screen.getByText(/Nenhuma forma de pagamento está disponível/)).toBeInTheDocument()

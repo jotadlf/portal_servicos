@@ -20,5 +20,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["server", "e2e", "playwright.config.ts"]
+  "include": ["banco", "e2e", "playwright.config.ts"]
 }

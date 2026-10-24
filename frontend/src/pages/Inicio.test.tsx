@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { apiServer, loginAs } from '../test/api-server'
+import { dbExec, loginAs } from '../test/supabase'
 import { Inicio } from './Inicio'
 
 type Props = Partial<Parameters<typeof Inicio>[0]>
@@ -30,9 +30,7 @@ describe('Inicio: busca', () => {
   })
 
   it('mostra as modalidades gravadas no banco, inclusive as novas', async () => {
-    apiServer()
-      .db.prepare(`INSERT INTO professions (id, name, tasks, position) VALUES ('vidraceiro', 'Vidraceiro', '["Trocar vidro"]', 9)`)
-      .run()
+    await dbExec(`INSERT into public.professions (id, name, tasks, position) VALUES ('vidraceiro', 'Vidraceiro', '{"Trocar vidro"}', 9)`)
     await renderInicio()
     await userEvent.click(screen.getByRole('button', { name: 'Vidraceiro' }))
     await userEvent.click(screen.getByRole('button', { name: 'Exibir' }))
@@ -138,7 +136,7 @@ describe('Inicio: profissionais', () => {
   })
 
   it('com login mostra nome completo, preço e o contato', async () => {
-    apiServer().db.prepare(`UPDATE professionals SET whatsapp = '' WHERE id = 'p1'`).run()
+    await dbExec(`update public.professionals set whatsapp = '' where id = 'p1'`)
     await loginAs('beatriz@exemplo.com')
     await renderInicio({ isLoggedIn: true, userName: 'Beatriz Rocha' })
     await openTask('Instalar chuveiro')
@@ -152,7 +150,7 @@ describe('Inicio: profissionais', () => {
   })
 
   it('abre o WhatsApp com o número gravado no banco', async () => {
-    apiServer().db.prepare(`UPDATE professionals SET whatsapp = '62988887777' WHERE id = 'p1'`).run()
+    await dbExec(`update public.professionals set whatsapp = '62988887777' where id = 'p1'`)
     const open = vi.spyOn(window, 'open').mockImplementation(() => null)
     await loginAs('beatriz@exemplo.com')
     await renderInicio({ isLoggedIn: true, userName: 'Beatriz Rocha' })
@@ -163,7 +161,7 @@ describe('Inicio: profissionais', () => {
   })
 
   it('abre o WhatsApp direto da lista, sem abrir o perfil', async () => {
-    apiServer().db.prepare(`UPDATE professionals SET whatsapp = '62988887777' WHERE id = 'p1'`).run()
+    await dbExec(`update public.professionals set whatsapp = '62988887777' where id = 'p1'`)
     const open = vi.spyOn(window, 'open').mockImplementation(() => null)
     await loginAs('beatriz@exemplo.com')
     await renderInicio({ isLoggedIn: true, userName: 'Beatriz Rocha' })
@@ -173,7 +171,7 @@ describe('Inicio: profissionais', () => {
   })
 
   it('sem login a lista mostra o WhatsApp desfocado e o toque leva ao login', async () => {
-    apiServer().db.prepare(`UPDATE professionals SET whatsapp = '62988887777' WHERE id = 'p1'`).run()
+    await dbExec(`update public.professionals set whatsapp = '62988887777' where id = 'p1'`)
     const { onLogin } = await renderInicio()
     await openTask('Instalar chuveiro')
     expect(sheet().queryByText(/98888-7777/)).not.toBeInTheDocument()
@@ -187,7 +185,7 @@ describe('Inicio: profissionais', () => {
   const listed = () => [...document.querySelectorAll('dialog .pro-name')].map((el) => el.textContent)
 
   it('ordena por avaliação, nome, menor e maior valor ("a combinar" no fim)', async () => {
-    apiServer().db.prepare(`UPDATE professionals SET name = 'Wagner Lima' WHERE id = 'p1'`).run()
+    await dbExec(`update public.professionals set name = 'Wagner Lima' where id = 'p1'`)
     await loginAs('beatriz@exemplo.com')
     await renderInicio({ isLoggedIn: true, userName: 'Beatriz Rocha' })
     await openTask('Instalar chuveiro')
@@ -230,14 +228,14 @@ describe('Inicio: profissionais', () => {
   })
 
   it('rascunho não aparece na lista', async () => {
-    apiServer().db.prepare(`UPDATE professionals SET status = 'rascunho' WHERE id = 'p1'`).run()
+    await dbExec(`update public.professionals set status = 'rascunho' where id = 'p1'`)
     await renderInicio()
     await openTask('Instalar chuveiro')
     expect(sheet().queryByRole('button', { name: /^Carlos/ })).not.toBeInTheDocument()
   })
 
   it('serviço sem profissionais avisa', async () => {
-    apiServer().db.prepare(`DELETE FROM services WHERE name = 'Plantar grama'`).run()
+    await dbExec(`delete from public.services where name = 'Plantar grama'`)
     await renderInicio()
     await userEvent.type(screen.getByRole('searchbox'), 'Plantar grama')
     await userEvent.click(screen.getByRole('button', { name: /Plantar grama/ }))

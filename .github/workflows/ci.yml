@@ -32,15 +32,34 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      # API + SQLite reais, e telas contra esse servidor
-      - name: Testes
-        run: npm test
-
       - name: Build (typecheck + Vite)
         run: npm run build
 
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.122.0
+
+      # Banco, Auth, API (PostgREST) e Storage; o resto não é usado pelo app
+      - name: Subir o Supabase local (migrações + seed)
+        working-directory: .
+        run: supabase start -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+
+      - name: Apontar os testes para o Supabase local
+        working-directory: .
+        run: |
+          eval "$(supabase status -o env)"
+          {
+            echo "VITE_SUPABASE_URL=$API_URL"
+            echo "VITE_SUPABASE_ANON_KEY=${PUBLISHABLE_KEY:-$ANON_KEY}"
+            echo "SUPABASE_DB_URL=$DB_URL"
+          } >> "$GITHUB_ENV"
+
+      # Funções do banco (banco/*.test.ts) e telas contra o Supabase local
+      - name: Testes
+        run: npm test
+
   e2e:
-    # Navegador de verdade (Chromium) usando o app completo: API, SQLite e Vite
+    # Navegador de verdade (Chromium) usando o app completo: Vite e Supabase local
     runs-on: ubuntu-latest
     needs: frontend
     defaults:
@@ -61,6 +80,24 @@ jobs:
 
       - name: Instalar o Chromium do Playwright
         run: npx playwright install --with-deps chromium
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.122.0
+
+      - name: Subir o Supabase local (migrações + seed)
+        working-directory: .
+        run: supabase start -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+
+      - name: Apontar o app para o Supabase local
+        working-directory: .
+        run: |
+          eval "$(supabase status -o env)"
+          {
+            echo "VITE_SUPABASE_URL=$API_URL"
+            echo "VITE_SUPABASE_ANON_KEY=${PUBLISHABLE_KEY:-$ANON_KEY}"
+            echo "SUPABASE_DB_URL=$DB_URL"
+          } >> "$GITHUB_ENV"
 
       - name: Testes de ponta a ponta
         run: npm run test:e2e

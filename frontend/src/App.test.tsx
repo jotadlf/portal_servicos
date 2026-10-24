@@ -3,9 +3,10 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import App from './App'
 import { getToken } from './lib/api'
-import { apiServer, loginAs } from './test/api-server'
+import { SESSION_KEY } from './lib/supabase'
+import { dbExec, dbRow, loginAs } from './test/supabase'
 
-// Navegação de ponta a ponta pelas rotas do "#", com o servidor e o banco reais
+// Navegação de ponta a ponta pelas rotas do "#", com o Supabase local de verdade
 async function login(email: string) {
   await userEvent.type(await screen.findByLabelText(/^E-mail/), email)
   await userEvent.type(screen.getByLabelText(/^Senha/), 'teste123')
@@ -57,12 +58,12 @@ describe('App', () => {
     expect(await screen.findByText(/, Beatriz$/)).toBeInTheDocument()
   })
 
-  it('sair encerra a sessão no servidor', async () => {
+  it('sair encerra a sessão no Supabase', async () => {
     await loginAs('beatriz@exemplo.com')
     render(<App />)
     await userEvent.click(await screen.findByRole('button', { name: 'Sair' }))
     expect(screen.getByRole('button', { name: 'Entrar' })).toBeInTheDocument()
-    await waitFor(() => expect(apiServer().db.prepare('SELECT count(*) AS n FROM sessions').get()).toEqual({ n: 0 }))
+    await waitFor(async () => expect((await dbRow('select count(*) as n from auth.sessions'))?.n).toBe(0))
     expect(getToken()).toBeUndefined()
   })
 
@@ -72,8 +73,10 @@ describe('App', () => {
     render(<App />)
     const saveButton = await screen.findByRole('button', { name: 'Salvar perfil' })
 
-    // A sessão some no servidor; a próxima chamada recebe 401
-    apiServer().db.prepare('DELETE FROM sessions').run()
+    // A sessão some no Supabase e o token guardado vence: a renovação falha e o app sai
+    await dbExec('delete from auth.sessions')
+    const stored = JSON.parse(sessionStorage.getItem(SESSION_KEY)!)
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ ...stored, expires_at: 1 }))
     await userEvent.click(saveButton)
     expect(await screen.findByText('Entre para ver seu perfil.')).toBeInTheDocument()
   })

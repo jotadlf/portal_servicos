@@ -12,7 +12,7 @@ import {
   Zap,
   type LucideIcon,
 } from 'lucide-react'
-import { api, fileToDataUrl } from '../../lib/api'
+import { imageUrl, rpc, uploadImage } from '../../lib/api'
 import eletricistaImg from '../../assets/profissoes/eletricista.png'
 import faxineiraImg from '../../assets/profissoes/faxineira.png'
 import diaristaImg from '../../assets/profissoes/diarista.svg'
@@ -50,11 +50,12 @@ type ProfessionData = { id: string; name: string; tasks: string[]; image?: strin
 
 function withVisual(data: ProfessionData): Profession {
   const visual = visuals[data.id]
-  return { ...data, icon: visual?.icon ?? Wrench, image: data.image ?? visual?.image }
+  // A imagem enviada vem do banco como caminho no Storage
+  return { ...data, icon: visual?.icon ?? Wrench, image: imageUrl(data.image) ?? visual?.image }
 }
 
 export async function fetchCatalog() {
-  return (await api<ProfessionData[]>('GET', '/api/catalogo')).map(withVisual)
+  return (await rpc<ProfessionData[]>('catalogo')).map(withVisual)
 }
 
 export type Task = { title: string; profession: Profession }
@@ -69,17 +70,14 @@ export function findProfession(professions: Profession[], id: string) {
   return professions.find((profession) => profession.id === id)
 }
 
-// Só a administração consegue; o servidor confere
+// Só a administração consegue; o banco confere (e o Storage só aceita a imagem dela)
 export async function addProfession({ name, tasks, image }: { name: string; tasks: string[]; image?: File }) {
-  const data = await api<ProfessionData>('POST', '/api/catalogo', {
-    name,
-    tasks,
-    image: image ? await fileToDataUrl(image) : undefined,
-  })
+  const path = image ? await uploadImage('modalidades', image, 'image') : undefined
+  const data = await rpc<ProfessionData>('adicionar_modalidade', { name, tasks, image: path })
   return withVisual(data)
 }
 
 // Os serviços da modalidade saem junto, de todos os perfis
 export function removeProfession(id: string) {
-  return api('DELETE', `/api/catalogo/${encodeURIComponent(id)}`)
+  return rpc<void>('remover_modalidade', { id })
 }

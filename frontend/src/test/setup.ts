@@ -1,10 +1,12 @@
 import '@testing-library/jest-dom/vitest'
 import { afterAll, afterEach, beforeAll, beforeEach, vi } from 'vitest'
 
-// Os testes da API (server/*.test.ts) rodam no Node puro; o resto é só para os de tela
+// Os testes do banco (banco/*.test.ts) rodam no Node puro e cuidam do próprio banco;
+// o resto é só para os de tela
 if (typeof window !== 'undefined') {
   const { cleanup } = await import('@testing-library/react')
-  const { apiServer, startApi } = await import('./api-server')
+  const { closeDb, resetDb } = await import('./supabase')
+  const { getSupabaseClient } = await import('../lib/supabase')
 
   // O jsdom não implementa o <dialog> modal: abrir e fechar só liga o atributo "open"
   HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {
@@ -25,16 +27,17 @@ if (typeof window !== 'undefined') {
   URL.createObjectURL ??= () => 'blob:foto-de-teste'
   window.scrollTo = () => {}
 
-  // Telas conversam com um servidor de verdade, com SQLite na memória
-  beforeAll(startApi)
-  beforeEach(() => apiServer().reset())
-  afterAll(() => apiServer().close())
+  // Telas conversam com o Supabase local de verdade, de volta aos dados de exemplo a cada teste
+  beforeAll(() => getSupabaseClient().auth.stopAutoRefresh())
+  beforeEach(resetDb)
+  afterAll(closeDb)
 
   afterEach(() => {
     cleanup()
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
     window.location.hash = ''
+    // A sessão do Supabase fica na sessionStorage: limpar = sair
     sessionStorage.clear()
   })
 }

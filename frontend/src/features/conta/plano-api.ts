@@ -1,11 +1,11 @@
-import { api } from '../../lib/api'
+import { rpc } from '../../lib/api'
 import type { PlanSettings } from './plano'
 
 export function fetchPlanSettings() {
-  return api<PlanSettings>('GET', '/api/plano')
+  return rpc<PlanSettings>('plano')
 }
 
-// Só a administração consegue; o servidor confere
+// Só a administração consegue; o banco confere
 export function savePlanSettings(settings: PlanSettings) {
-  return api<PlanSettings>('PUT', '/api/plano', settings)
+  return rpc<PlanSettings>('salvar_plano', settings)
 }

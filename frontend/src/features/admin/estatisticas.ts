@@ -1,5 +1,5 @@
-// Números do painel de administração, calculados no servidor a partir do banco
-import { api } from '../../lib/api'
+// Números do painel de administração, calculados no banco
+import { rpc } from '../../lib/api'
 
 export type Stats = {
   accounts: number
@@ -21,5 +21,5 @@ export type Stats = {
 export type RankingRow = { professionId: string; name: string; services: number; providers: number }
 
 export function fetchStats() {
-  return api<{ stats: Stats; ranking: RankingRow[] }>('GET', '/api/admin/estatisticas')
+  return rpc<{ stats: Stats; ranking: RankingRow[] }>('estatisticas')
 }

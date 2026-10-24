@@ -10,9 +10,6 @@ const theme = createTheme({ fontFamily: "'Archivo Variable', ui-sans-serif, syst
 
 registerSW({ immediate: true })
 
-// GitHub Pages não roda servidor: a API sobe aqui na página antes das telas
-if (import.meta.env.MODE === 'demo') await (await import('virtual:demo')).startDemo()
-
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <MantineProvider theme={theme}>
