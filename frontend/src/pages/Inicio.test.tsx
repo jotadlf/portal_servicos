@@ -30,7 +30,7 @@ describe('Inicio: busca', () => {
   })
 
   it('mostra as modalidades gravadas no banco, inclusive as novas', async () => {
-    await dbExec(`INSERT into public.professions (id, name, tasks, position) VALUES ('vidraceiro', 'Vidraceiro', '{"Trocar vidro"}', 9)`)
+    await dbExec(`INSERT into public.modalidades (id, nome, sugestoes, posicao) VALUES ('vidraceiro', 'Vidraceiro', '{"Trocar vidro"}', 9)`)
     await renderInicio()
     await userEvent.click(screen.getByRole('button', { name: 'Vidraceiro' }))
     await userEvent.click(screen.getByRole('button', { name: 'Exibir' }))
@@ -136,7 +136,7 @@ describe('Inicio: profissionais', () => {
   })
 
   it('com login mostra nome completo, preço e o contato', async () => {
-    await dbExec(`update public.professionals set whatsapp = '' where id = 'p1'`)
+    await dbExec(`update public.prestadores set whatsapp = '' where id = 'p1'`)
     await loginAs('beatriz@exemplo.com')
     await renderInicio({ isLoggedIn: true, userName: 'Beatriz Rocha' })
     await openTask('Instalar chuveiro')
@@ -150,7 +150,7 @@ describe('Inicio: profissionais', () => {
   })
 
   it('abre o WhatsApp com o número gravado no banco', async () => {
-    await dbExec(`update public.professionals set whatsapp = '62988887777' where id = 'p1'`)
+    await dbExec(`update public.prestadores set whatsapp = '62988887777' where id = 'p1'`)
     const open = vi.spyOn(window, 'open').mockImplementation(() => null)
     await loginAs('beatriz@exemplo.com')
     await renderInicio({ isLoggedIn: true, userName: 'Beatriz Rocha' })
@@ -161,7 +161,7 @@ describe('Inicio: profissionais', () => {
   })
 
   it('abre o WhatsApp direto da lista, sem abrir o perfil', async () => {
-    await dbExec(`update public.professionals set whatsapp = '62988887777' where id = 'p1'`)
+    await dbExec(`update public.prestadores set whatsapp = '62988887777' where id = 'p1'`)
     const open = vi.spyOn(window, 'open').mockImplementation(() => null)
     await loginAs('beatriz@exemplo.com')
     await renderInicio({ isLoggedIn: true, userName: 'Beatriz Rocha' })
@@ -171,7 +171,7 @@ describe('Inicio: profissionais', () => {
   })
 
   it('sem login a lista mostra o WhatsApp desfocado e o toque leva ao login', async () => {
-    await dbExec(`update public.professionals set whatsapp = '62988887777' where id = 'p1'`)
+    await dbExec(`update public.prestadores set whatsapp = '62988887777' where id = 'p1'`)
     const { onLogin } = await renderInicio()
     await openTask('Instalar chuveiro')
     expect(sheet().queryByText(/98888-7777/)).not.toBeInTheDocument()
@@ -185,7 +185,7 @@ describe('Inicio: profissionais', () => {
   const listed = () => [...document.querySelectorAll('dialog .pro-name')].map((el) => el.textContent)
 
   it('ordena por avaliação, nome, menor e maior valor ("a combinar" no fim)', async () => {
-    await dbExec(`update public.professionals set name = 'Wagner Lima' where id = 'p1'`)
+    await dbExec(`update public.prestadores set nome = 'Wagner Lima' where id = 'p1'`)
     await loginAs('beatriz@exemplo.com')
     await renderInicio({ isLoggedIn: true, userName: 'Beatriz Rocha' })
     await openTask('Instalar chuveiro')
@@ -228,14 +228,14 @@ describe('Inicio: profissionais', () => {
   })
 
   it('rascunho não aparece na lista', async () => {
-    await dbExec(`update public.professionals set status = 'rascunho' where id = 'p1'`)
+    await dbExec(`update public.prestadores set status = 'rascunho' where id = 'p1'`)
     await renderInicio()
     await openTask('Instalar chuveiro')
     expect(sheet().queryByRole('button', { name: /^Carlos/ })).not.toBeInTheDocument()
   })
 
   it('serviço sem profissionais avisa', async () => {
-    await dbExec(`delete from public.services where name = 'Plantar grama'`)
+    await dbExec(`delete from public.servicos where nome = 'Plantar grama'`)
     await renderInicio()
     await userEvent.type(screen.getByRole('searchbox'), 'Plantar grama')
     await userEvent.click(screen.getByRole('button', { name: /Plantar grama/ }))

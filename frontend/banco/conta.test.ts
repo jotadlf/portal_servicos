@@ -19,7 +19,7 @@ const fullProfile = {
   },
 }
 
-const profile = (id: string) => row('select * from public.profiles where id = $1', id)
+const profile = (id: string) => row('select * from public.contas where id = $1', id)
 const uploadedPhotos = async () =>
   (await row(`select count(*) as n from storage.objects where bucket_id = 'fotos'`))!.n as number
 
@@ -30,15 +30,15 @@ describe('Perfil: cada campo gravado no banco', () => {
     expect(response.status).toBe(200)
 
     expect(await profile(account.id)).toMatchObject({
-      name: 'Ana Souza',
-      phone: '62999998888',
+      nome: 'Ana Souza',
+      telefone: '62999998888',
       cep: '74215010',
-      street: 'Rua T-30',
-      number: 'Qd 5 Lt 10',
-      complement: 'Apto 302',
-      neighborhood: 'Setor Bueno',
-      city: 'Pau-d’Arco',
-      state: 'GO',
+      rua: 'Rua T-30',
+      numero: 'Qd 5 Lt 10',
+      complemento: 'Apto 302',
+      bairro: 'Setor Bueno',
+      cidade: 'Pau-d’Arco',
+      uf: 'GO',
     })
     expect(response.body.address).toMatchObject({ cep: '74215010', state: 'GO' })
   })
@@ -53,8 +53,8 @@ describe('Perfil: cada campo gravado no banco', () => {
     await sendPhoto(client, account.id)
     await call('salvar_conta', fullProfile, client)
 
-    const pro = await row('select * from public.professionals where account_id = $1', account.id)
-    expect(pro).toMatchObject({ name: 'Ana Souza', whatsapp: '62999998888', neighborhood: 'Setor Bueno' })
+    const pro = await row('select * from public.prestadores where conta_id = $1', account.id)
+    expect(pro).toMatchObject({ nome: 'Ana Souza', whatsapp: '62999998888', bairro: 'Setor Bueno' })
     expect(JSON.stringify(pro)).not.toContain('Rua T-30')
   })
 
@@ -92,30 +92,30 @@ describe('Perfil: cada campo gravado no banco', () => {
     const { client, account } = await signUp()
     await call(
       'salvar_conta',
-      { name: 'Ana Lima', email: 'outro@exemplo.com', password: 'x', cpf: VALID_CPFS[2], isAdmin: true, is_admin: true },
+      { name: 'Ana Lima', email: 'outro@exemplo.com', password: 'x', cpf: VALID_CPFS[2], isAdmin: true, admin: true },
       client,
     )
-    const saved = await row('select email, cpf, is_admin from public.profiles where id = $1', account.id)
-    expect(saved).toMatchObject({ cpf: null, is_admin: false })
+    const saved = await row('select email, cpf, admin from public.contas where id = $1', account.id)
+    expect(saved).toMatchObject({ cpf: null, admin: false })
     expect(saved!.email).not.toBe('outro@exemplo.com')
   })
 
   it('cada um só altera a própria conta', async () => {
     const client = await signIn('beatriz@exemplo.com')
     await call('salvar_conta', { name: 'Beatriz Nova', id: SAMPLE_IDS.carlos }, client)
-    expect((await profile(SAMPLE_IDS.carlos))!.name).toBe('Carlos Henrique')
-    expect((await profile(SAMPLE_IDS.beatriz))!.name).toBe('Beatriz Nova')
+    expect((await profile(SAMPLE_IDS.carlos))!.nome).toBe('Carlos Henrique')
+    expect((await profile(SAMPLE_IDS.beatriz))!.nome).toBe('Beatriz Nova')
   })
 
   it('as tabelas não abrem direto pela API, nem para quem entrou', async () => {
     const client = await signIn('beatriz@exemplo.com')
-    for (const table of ['profiles', 'professionals', 'services', 'contacts', 'plan_settings']) {
+    for (const table of ['contas', 'prestadores', 'servicos', 'contatos', 'ajustes_plano']) {
       const read = await client.from(table).select('*')
       expect(read.data ?? []).toEqual([])
     }
-    const update = await client.from('profiles').update({ is_admin: true }).eq('id', SAMPLE_IDS.beatriz)
+    const update = await client.from('contas').update({ admin: true }).eq('id', SAMPLE_IDS.beatriz)
     expect(update.error).not.toBeNull()
-    expect((await profile(SAMPLE_IDS.beatriz))!.is_admin).toBe(false)
+    expect((await profile(SAMPLE_IDS.beatriz))!.admin).toBe(false)
   })
 })
 
@@ -126,8 +126,8 @@ describe('Perfil: foto', () => {
     expect(status).toBe(200)
     expect(body.photo).toBe(path)
     expect(path.startsWith(`${account.id}/`)).toBe(true)
-    expect((await profile(account.id))!.photo).toBe(path)
-    expect((await row('select photo from public.professionals where account_id = $1', account.id))!.photo).toBe(path)
+    expect((await profile(account.id))!.foto).toBe(path)
+    expect((await row('select foto from public.prestadores where conta_id = $1', account.id))!.foto).toBe(path)
 
     const { data } = client.storage.from('fotos').getPublicUrl(path)
     const image = await fetch(data.publicUrl)
@@ -147,7 +147,7 @@ describe('Perfil: foto', () => {
     const response = await call('definir_foto', { path }, ana.client)
     expect(response.status).toBe(400)
     expect(response.body.fields.photo).toBe('Escolha um arquivo de imagem, como JPG ou PNG.')
-    expect((await profile(ana.account.id))!.photo).toBeNull()
+    expect((await profile(ana.account.id))!.foto).toBeNull()
   })
 
   it('recusa caminho que não existe no Storage', async () => {
@@ -190,7 +190,7 @@ describe('Perfil: virar prestador', () => {
     await call('virar_prestador', undefined, client)
     const second = await call('virar_prestador', undefined, client)
     expect(second.body.professionalId).toBeDefined()
-    expect((await row('select count(*) as n from public.professionals where account_id = $1', account.id))!.n).toBe(1)
+    expect((await row('select count(*) as n from public.prestadores where conta_id = $1', account.id))!.n).toBe(1)
   })
 
   it('PONTO DE ATENÇÃO: vira prestador sem informar CPF', async () => {

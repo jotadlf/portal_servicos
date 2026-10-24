@@ -37,14 +37,14 @@ describe('PerfilPrestador', () => {
   })
 
   it('mostra o texto "Sobre" com HTML como texto, sem executar', async () => {
-    await dbExec(`update public.professionals set about = '<img src=x onerror=alert(1)>' where id = 'p1'`)
+    await dbExec(`update public.prestadores set sobre = '<img src=x onerror=alert(1)>' where id = 'p1'`)
     await renderPerfil()
     expect(screen.getByText('<img src=x onerror=alert(1)>')).toBeInTheDocument()
     expect(document.querySelector('img[src="x"]')).toBeNull()
   })
 
   it('abre o WhatsApp quando o prestador tem número', async () => {
-    await dbExec(`update public.professionals set whatsapp = '62999998888' where id = 'p1'`)
+    await dbExec(`update public.prestadores set whatsapp = '62999998888' where id = 'p1'`)
     const open = vi.spyOn(window, 'open').mockImplementation(() => null)
     await loginAs('beatriz@exemplo.com')
     await renderPerfil({ isLoggedIn: true })
@@ -58,7 +58,7 @@ describe('PerfilPrestador', () => {
   })
 
   it('avisa quando o prestador não tem WhatsApp', async () => {
-    await dbExec(`update public.professionals set whatsapp = '' where id = 'p1'`)
+    await dbExec(`update public.prestadores set whatsapp = '' where id = 'p1'`)
     await loginAs('beatriz@exemplo.com')
     await renderPerfil({ isLoggedIn: true })
     await userEvent.click(screen.getByRole('button', { name: 'Falar com Carlos no WhatsApp' }))

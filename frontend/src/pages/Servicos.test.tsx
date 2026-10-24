@@ -15,7 +15,7 @@ const painel = () => screen.findByRole('heading', { name: 'Serviços', level: 1 
 // O formulário "Sobre seu trabalho" também tem um botão Salvar
 const editor = () => within(screen.getByLabelText('Serviço').closest('form')!)
 const servicesOf = (professionalId: string) =>
-  dbRows('select profession_id, name, price from public.services where professional_id = $1 order by position', professionalId)
+  dbRows('select modalidade_id, nome, preco from public.servicos where prestador_id = $1 order by posicao', professionalId)
 
 async function addService(name: string, price = '') {
   await userEvent.click(screen.getByRole('button', { name: 'Adicionar serviço' }))
@@ -40,7 +40,7 @@ describe('Servicos: quem ainda não oferece', () => {
     await waitFor(() => expect(onAccountChange).toHaveBeenCalled())
     const updated = onAccountChange.mock.calls[0][0] as Account
     expect(updated.professionalId).toBeDefined()
-    expect((await dbRow('select status from public.professionals where account_id = $1', account.id))?.status).toBe('rascunho')
+    expect((await dbRow('select status from public.prestadores where conta_id = $1', account.id))?.status).toBe('rascunho')
   })
 
   it('administração não vê oferta de plano nem preço', async () => {
@@ -62,14 +62,14 @@ describe('Servicos: meus serviços gravados no banco', () => {
     await addService('Instalar ventilador', '120')
     expect(screen.getByText(/média R\$\s120/)).toBeInTheDocument()
     expect(await servicesOf(account.professionalId!)).toEqual([
-      { profession_id: 'eletricista', name: 'Instalar ventilador', price: 120 },
+      { modalidade_id: 'eletricista', nome: 'Instalar ventilador', preco: 120 },
     ])
 
     await userEvent.click(screen.getByRole('button', { name: 'Editar Instalar ventilador' }))
     await userEvent.clear(screen.getByLabelText(/^Preço médio/))
     await userEvent.click(editor().getByRole('button', { name: 'Salvar' }))
     expect(await screen.findByText('a combinar')).toBeInTheDocument()
-    expect((await servicesOf(account.professionalId!))[0].price).toBeNull()
+    expect((await servicesOf(account.professionalId!))[0].preco).toBeNull()
 
     await userEvent.click(screen.getByRole('button', { name: 'Apagar Instalar ventilador' }))
     expect(await screen.findByText(/Instalar ventilador apagado/)).toBeInTheDocument()
@@ -94,7 +94,7 @@ describe('Servicos: meus serviços gravados no banco', () => {
     await userEvent.click(folha.getByRole('button', { name: 'Salvar' }))
 
     expect(await screen.findByText(/média R\$\s25 por m²/)).toBeInTheDocument()
-    expect((await dbRow('select unit from public.services where professional_id = $1', account.professionalId!))?.unit).toBe('m2')
+    expect((await dbRow('select unidade from public.servicos where prestador_id = $1', account.professionalId!))?.unidade).toBe('m2')
   })
 
   it('adicionar abre a folha "Novo serviço"; o X fecha e reabre limpa', async () => {
@@ -136,7 +136,7 @@ describe('Servicos: meus serviços gravados no banco', () => {
     renderServicos(account)
     await painel()
     // A modalidade some do banco enquanto a tela está aberta
-    await dbExec(`delete from public.professions where id = 'pintor'`)
+    await dbExec(`delete from public.modalidades where id = 'pintor'`)
 
     await userEvent.click(screen.getByRole('button', { name: 'Adicionar serviço' }))
     await userEvent.selectOptions(screen.getByLabelText('Profissão'), 'pintor')
@@ -154,7 +154,7 @@ describe('Servicos: meus serviços gravados no banco', () => {
     await userEvent.type(screen.getByLabelText('Sobre seu trabalho'), '  Atendo a região sul. ')
     await userEvent.click(screen.getAllByRole('button', { name: 'Salvar' }).at(-1)!)
     expect(await screen.findByText('Texto salvo.')).toBeInTheDocument()
-    expect((await dbRow('select about from public.professionals where account_id = $1', account.id))?.about).toBe('Atendo a região sul.')
+    expect((await dbRow('select sobre from public.prestadores where conta_id = $1', account.id))?.sobre).toBe('Atendo a região sul.')
   })
 })
 
@@ -181,7 +181,7 @@ describe('Servicos: publicação', () => {
 
 describe('Servicos: perfil publicado', () => {
   it('mostra o plano e pede o WhatsApp', async () => {
-    await dbExec(`update public.professionals set whatsapp = '' where id = 'p1'`)
+    await dbExec(`update public.prestadores set whatsapp = '' where id = 'p1'`)
     renderServicos(await loginAs('carlos@exemplo.com'))
     expect(await screen.findByText(/Perfil publicado\. Plano mensal/)).toBeInTheDocument()
     expect(screen.getByText(/Cadastre seu WhatsApp no/)).toBeInTheDocument()
@@ -195,7 +195,7 @@ describe('Servicos: perfil publicado', () => {
     expect(screen.getByLabelText('2 novos')).toBeInTheDocument()
     await userEvent.click(screen.getAllByRole('button', { name: 'Marcar como respondido' })[0])
     await waitFor(() => expect(screen.getAllByText('Novo')).toHaveLength(1))
-    expect((await dbRow(`select count(*) as n from public.contacts where answered = false`))?.n).toBe(1)
+    expect((await dbRow(`select count(*) as n from public.contatos where respondido = false`))?.n).toBe(1)
   })
 
   it('mostra a nota e os comentários', async () => {

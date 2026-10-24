@@ -22,20 +22,20 @@ describe('Cadastro real: dados gravados no banco', () => {
   it('grava a conta de quem só contrata, campo a campo', async () => {
     const { account } = await signUp({ name: '  Ana   Lima ', email: '  Ana.Lima@Exemplo.COM ', password: 'segredo1' })
 
-    const saved = await row('select * from public.profiles where id = $1', account.id)
+    const saved = await row('select * from public.contas where id = $1', account.id)
     expect(saved).toMatchObject({
       email: 'ana.lima@exemplo.com',
-      name: 'Ana Lima',
-      phone: '',
+      nome: 'Ana Lima',
+      telefone: '',
       cpf: null,
-      photo: null,
-      is_admin: false,
+      foto: null,
+      admin: false,
       cep: '',
-      city: '',
-      state: '',
+      cidade: '',
+      uf: '',
     })
-    expect(saved!.created_at).toBeInstanceOf(Date)
-    expect((await row('select count(*) as n from public.professionals where account_id = $1', account.id))!.n).toBe(0)
+    expect(saved!.criado_em).toBeInstanceOf(Date)
+    expect((await row('select count(*) as n from public.prestadores where conta_id = $1', account.id))!.n).toBe(0)
   })
 
   it('a senha fica só no Supabase Auth, como hash bcrypt com sal diferente em cada conta', async () => {
@@ -48,19 +48,19 @@ describe('Cadastro real: dados gravados no banco', () => {
     expect(hashA).toMatch(/^\$2[aby]\$/)
     expect(hashA).not.toContain('mesmaSenha')
     expect(hashA).not.toBe(await hash(b.account.id))
-    expect(JSON.stringify(await row('select * from public.profiles where id = $1', a.account.id))).not.toContain(
+    expect(JSON.stringify(await row('select * from public.contas where id = $1', a.account.id))).not.toContain(
       'mesmaSenha',
     )
   })
 
   it('grava o prestador com CPF só em dígitos e cria o perfil em rascunho', async () => {
     const { account } = await signUp({ asProvider: true, cpf: '529.982.247-25' })
-    expect((await row('select cpf from public.profiles where id = $1', account.id))!.cpf).toBe('52998224725')
-    expect(await row('select * from public.professionals where account_id = $1', account.id)).toMatchObject({
-      name: 'Ana Lima',
+    expect((await row('select cpf from public.contas where id = $1', account.id))!.cpf).toBe('52998224725')
+    expect(await row('select * from public.prestadores where conta_id = $1', account.id)).toMatchObject({
+      nome: 'Ana Lima',
       status: 'rascunho',
-      plan: null,
-      trial_ends_at: null,
+      plano: null,
+      fim_teste: null,
       whatsapp: '',
     })
     expect(account.professionalId).toBeDefined()
@@ -121,19 +121,19 @@ describe('Cadastro real: dados gravados no banco', () => {
     const response = await cadastro({ name: 'Ana Lima', email: uniqueEmail(), password: 'segredo1', ...data })
     expect(response.status).toBe(400)
     expect(response.body.fields[field]).toEqual(typeof message === 'string' ? message : expect.stringMatching(message))
-    expect((await row('select count(*) as n from public.profiles'))!.n).toBe(3)
+    expect((await row('select count(*) as n from public.contas'))!.n).toBe(3)
   })
 
   it('aceita nomes com acento, apóstrofo e hífen', async () => {
     const { account } = await signUp({ name: "Joana D'Ávila-Conceição" })
-    expect((await row('select name from public.profiles where id = $1', account.id))!.name).toBe(
+    expect((await row('select nome from public.contas where id = $1', account.id))!.nome).toBe(
       "Joana D'Ávila-Conceição",
     )
   })
 
   it('ignora CPF enviado por quem não vai oferecer serviços', async () => {
     const { account } = await signUp({ asProvider: false, cpf: VALID_CPFS[3] })
-    expect((await row('select cpf from public.profiles where id = $1', account.id))!.cpf).toBeNull()
+    expect((await row('select cpf from public.contas where id = $1', account.id))!.cpf).toBeNull()
   })
 
   it('recusa corpo que não é objeto', async () => {
@@ -157,11 +157,11 @@ describe('Cadastro real: dados gravados no banco', () => {
     await client.auth.signUp({
       email: uniqueEmail(),
       password: 'segredo1',
-      options: { data: { name: 'Ana Lima', isAdmin: true, is_admin: true } },
+      options: { data: { name: 'Ana Lima', isAdmin: true, admin: true } },
     })
     const me = await call('minha_conta', undefined, client)
     expect(me.body.isAdmin).toBeUndefined()
-    expect((await row('select is_admin from public.profiles where id = $1', me.body.id))!.is_admin).toBe(false)
+    expect((await row('select admin from public.contas where id = $1', me.body.id))!.admin).toBe(false)
   })
 })
 

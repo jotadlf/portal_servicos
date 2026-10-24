@@ -10,7 +10,7 @@ const search = (client?: Awaited<ReturnType<typeof signIn>>) =>
 
 describe('Busca de prestadores', () => {
   it('sem login: só o primeiro nome, sem foto, preço e WhatsApp (nada disso sai do banco)', async () => {
-    await exec(`update public.professionals set whatsapp = '62988887777' where id = 'p1'`)
+    await exec(`update public.prestadores set whatsapp = '62988887777' where id = 'p1'`)
     const { body } = await search()
     const carlos = body.find((p: { id: string }) => p.id === 'p1')
     expect(carlos.name).toBe('Carlos')
@@ -29,7 +29,7 @@ describe('Busca de prestadores', () => {
   })
 
   it('com login: nome completo, foto, preço e WhatsApp', async () => {
-    await exec(`update public.professionals set whatsapp = '62988887777' where id = 'p1'`)
+    await exec(`update public.prestadores set whatsapp = '62988887777' where id = 'p1'`)
     const client = await signIn('beatriz@exemplo.com')
     const carlos = (await search(client)).body.find((p: { id: string }) => p.id === 'p1')
     expect(carlos).toMatchObject({ name: 'Carlos Henrique', photo: 'exemplos/p1.png', whatsapp: '62988887777' })
@@ -82,10 +82,10 @@ describe('Meus serviços: gravação', () => {
       client,
     )
     const units = await rows(
-      'select unit from public.services where professional_id = $1 order by position',
+      'select unidade from public.servicos where prestador_id = $1 order by posicao',
       account.professionalId,
     )
-    expect(units.map((r) => r.unit)).toEqual(['m2', 'diaria', 'servico'])
+    expect(units.map((r) => r.unidade)).toEqual(['m2', 'diaria', 'servico'])
   })
 
   it('grava os serviços na ordem, com preço inteiro ou a combinar', async () => {
@@ -102,19 +102,19 @@ describe('Meus serviços: gravação', () => {
     )
     expect(response.status).toBe(200)
     const saved = await rows(
-      'select profession_id, name, price, position from public.services where professional_id = $1 order by position',
+      'select modalidade_id, nome, preco, posicao from public.servicos where prestador_id = $1 order by posicao',
       account.professionalId,
     )
     expect(saved).toEqual([
-      { profession_id: 'eletricista', name: 'Instalar ventilador', price: 120, position: 0 },
-      { profession_id: 'pintor', name: 'Pintar portão', price: null, position: 1 },
+      { modalidade_id: 'eletricista', nome: 'Instalar ventilador', preco: 120, posicao: 0 },
+      { modalidade_id: 'pintor', nome: 'Pintar portão', preco: null, posicao: 1 },
     ])
   })
 
   it('substitui a lista inteira (apagar um serviço some do banco)', async () => {
     const { client, account } = await readyProvider()
     await call('salvar_servicos', { services: [] }, client)
-    expect((await row('select count(*) as n from public.services where professional_id = $1', account.professionalId))!.n).toBe(0)
+    expect((await row('select count(*) as n from public.servicos where prestador_id = $1', account.professionalId))!.n).toBe(0)
   })
 
   it.each([
@@ -131,7 +131,7 @@ describe('Meus serviços: gravação', () => {
     const response = await call('salvar_servicos', { services: [service] }, client)
     expect(response.status).toBe(400)
     expect(response.body.fields[field]).toBeDefined()
-    expect((await row('select count(*) as n from public.services where professional_id = $1', account.professionalId))!.n).toBe(1)
+    expect((await row('select count(*) as n from public.servicos where prestador_id = $1', account.professionalId))!.n).toBe(1)
   })
 
   it('recusa serviço repetido na mesma profissão, sem diferenciar maiúsculas e acentos', async () => {
@@ -168,7 +168,7 @@ describe('Meus serviços: gravação', () => {
   it('grava o texto "Sobre" e recusa acima de 300 caracteres', async () => {
     const { client, account } = await readyProvider()
     await call('salvar_sobre', { about: '  Atendo a região sul.  ' }, client)
-    expect((await row('select about from public.professionals where id = $1', account.professionalId))!.about).toBe(
+    expect((await row('select sobre from public.prestadores where id = $1', account.professionalId))!.sobre).toBe(
       'Atendo a região sul.',
     )
     expect((await call('salvar_sobre', { about: 'x'.repeat(301) }, client)).status).toBe(400)
@@ -195,22 +195,22 @@ describe('Publicar perfil', () => {
     expect(semPlano.status).toBe(400)
     expect(semPlano.body.fields.plan).toBeDefined()
 
-    await exec('update public.profiles set is_admin = true where id = $1', account.id)
+    await exec('update public.contas set admin = true where id = $1', account.id)
     expect((await call('publicar', {}, client)).status).toBe(200)
     expect(
-      await row('select status, plan, payment_method, trial_ends_at from public.professionals where id = $1', account.professionalId),
-    ).toEqual({ status: 'publicado', plan: null, payment_method: null, trial_ends_at: null })
+      await row('select status, plano, forma_pagamento, fim_teste from public.prestadores where id = $1', account.professionalId),
+    ).toEqual({ status: 'publicado', plano: null, forma_pagamento: null, fim_teste: null })
   })
 
   it('publica e grava plano, forma de pagamento e fim do período grátis', async () => {
     const { client, account } = await readyProvider()
     expect((await call('publicar', { plan: 'semestral', method: 'cartao' }, client)).status).toBe(200)
 
-    expect(await row('select * from public.professionals where id = $1', account.professionalId)).toMatchObject({
+    expect(await row('select * from public.prestadores where id = $1', account.professionalId)).toMatchObject({
       status: 'publicado',
-      plan: 'semestral',
-      payment_method: 'cartao',
-      trial_ends_at: todayInBrazil(15),
+      plano: 'semestral',
+      forma_pagamento: 'cartao',
+      fim_teste: todayInBrazil(15),
     })
     // Publicado, aparece na busca
     expect((await search()).body.map((p: { id: string }) => p.id)).toContain(account.professionalId)
@@ -225,7 +225,7 @@ describe('Publicar perfil', () => {
   it('recusa plano inválido e forma de pagamento desligada', async () => {
     const { client } = await readyProvider()
     expect((await call('publicar', { plan: 'anual', method: 'pix' }, client)).body.fields.plan).toBeDefined()
-    await exec('update public.plan_settings set pix_enabled = false')
+    await exec('update public.ajustes_plano set pix_ativo = false')
     expect((await call('publicar', { plan: 'mensal', method: 'pix' }, client)).body.fields.method).toBeDefined()
   })
 })
@@ -238,12 +238,12 @@ describe('Contatos do prestador', () => {
     expect(list.body.filter((c: { answered: boolean }) => !c.answered)).toHaveLength(2)
 
     await call('marcar_respondido', { id: 'c1' }, client)
-    expect((await row(`select answered from public.contacts where id = 'c1'`))!.answered).toBe(true)
+    expect((await row(`select respondido from public.contatos where id = 'c1'`))!.respondido).toBe(true)
   })
 
   it('não marca contato de outro prestador', async () => {
     const { client } = await readyProvider()
     expect((await call('marcar_respondido', { id: 'c1' }, client)).status).toBe(404)
-    expect((await row(`select answered from public.contacts where id = 'c1'`))!.answered).toBe(false)
+    expect((await row(`select respondido from public.contatos where id = 'c1'`))!.respondido).toBe(false)
   })
 })

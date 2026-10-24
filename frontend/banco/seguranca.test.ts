@@ -13,24 +13,24 @@ describe('Textos maliciosos ou incomuns', () => {
 
   it('SQL injection em texto livre é gravado como texto, sem efeito no banco', async () => {
     const { client, account } = await readyProvider()
-    const attack = "'); DROP TABLE public.profiles; --"
+    const attack = "'); DROP TABLE public.contas; --"
     await call('salvar_sobre', { about: attack }, client)
-    expect((await row('select about from public.professionals where id = $1', account.professionalId))!.about).toBe(attack)
-    expect((await row('select count(*) as n from public.profiles'))!.n).toBe(4)
+    expect((await row('select sobre from public.prestadores where id = $1', account.professionalId))!.sobre).toBe(attack)
+    expect((await row('select count(*) as n from public.contas'))!.n).toBe(4)
   })
 
   it('HTML/script é gravado literalmente (a tela mostra como texto)', async () => {
     const { client, account } = await readyProvider()
     const xss = '<img src=x onerror=alert(1)><script>alert(1)</script>'
     await call('salvar_sobre', { about: xss }, client)
-    expect((await row('select about from public.professionals where id = $1', account.professionalId))!.about).toBe(xss)
+    expect((await row('select sobre from public.prestadores where id = $1', account.professionalId))!.sobre).toBe(xss)
   })
 
   it('emoji e acentos chegam inteiros ao banco e de volta', async () => {
     const { client, account } = await readyProvider()
     const text = 'Atendo com carinho 😊 — ação, pão, çedilha, “aspas”'
     await call('salvar_sobre', { about: text }, client)
-    expect((await row('select about from public.professionals where id = $1', account.professionalId))!.about).toBe(text)
+    expect((await row('select sobre from public.prestadores where id = $1', account.professionalId))!.sobre).toBe(text)
     expect((await call('meu_prestador', undefined, client)).body.about).toBe(text)
   })
 

@@ -1,4 +1,4 @@
-// Contas: login no Supabase Auth, dados no perfil (public.profiles). O CPF fica só no banco.
+// Contas: login no Supabase Auth, dados na conta (public.contas). O CPF fica só no banco.
 import { ApiError, imageUrl, removeImage, rpc, uploadImage } from '../../lib/api'
 import { PHOTO } from '../../lib/imagem'
 import { getSupabaseClient } from '../../lib/supabase'

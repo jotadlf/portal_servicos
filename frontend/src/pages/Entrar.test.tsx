@@ -5,7 +5,7 @@ import { getToken } from '../lib/api'
 import { dbExec, dbRow, newAccount, SAMPLE_IDS } from '../test/supabase'
 import { Entrar } from './Entrar'
 
-const setPlan = (sql: string) => dbExec(`update public.plan_settings set ${sql}`)
+const setPlan = (sql: string) => dbExec(`update public.ajustes_plano set ${sql}`)
 
 describe('Entrar: login real', () => {
   async function fillLogin(password: string, email = 'carlos@exemplo.com') {
@@ -119,7 +119,7 @@ describe('Entrar: validação dos campos', () => {
     expect(screen.getByLabelText(/^Senha/)).toHaveAccessibleDescription('A senha precisa ter pelo menos 6 caracteres.')
     expect(screen.getByLabelText(/^CPF/)).toHaveAccessibleDescription('Informe um CPF válido.')
     expect(screen.getByLabelText(/^Nome/)).toHaveFocus()
-    expect((await dbRow('select count(*) as n from public.profiles'))?.n).toBe(3)
+    expect((await dbRow('select count(*) as n from public.contas'))?.n).toBe(3)
   })
 
   it('recusa nome com números', async () => {
@@ -177,7 +177,7 @@ describe('Entrar: oferta para prestador (valores do banco)', () => {
   })
 
   it('acompanha os valores gravados pela administração', async () => {
-    await setPlan('trial_days = 30, monthly_price = 25')
+    await setPlan('dias_teste = 30, preco_mensal = 25')
     render(<Entrar mode="cadastro" onSignedIn={vi.fn()} />)
     await toggle()
     expect(await screen.findByText('Gratuito por 30 dias')).toBeInTheDocument()
@@ -185,7 +185,7 @@ describe('Entrar: oferta para prestador (valores do banco)', () => {
   })
 
   it('sem período grátis mostra só o valor', async () => {
-    await setPlan('trial_days = 0')
+    await setPlan('dias_teste = 0')
     render(<Entrar mode="cadastro" onSignedIn={vi.fn()} />)
     await toggle()
     expect(await screen.findByText(/Oferecer serviços custa/)).toHaveTextContent(/R\$\s19,90 por mês/)
@@ -213,11 +213,11 @@ describe('Entrar: cadastro real', () => {
     await waitFor(() => expect(onSignedIn).toHaveBeenCalled())
     const [account, next] = onSignedIn.mock.calls[0]
     expect(next).toBeUndefined()
-    expect(await dbRow('select email, name, cpf, phone from public.profiles where id = $1', account.id)).toEqual({
+    expect(await dbRow('select email, nome, cpf, telefone from public.contas where id = $1', account.id)).toEqual({
       email: 'ana.lima@exemplo.com',
-      name: 'Ana Lima',
+      nome: 'Ana Lima',
       cpf: null,
-      phone: '',
+      telefone: '',
     })
     expect((await dbRow('select encrypted_password from auth.users where id = $1', account.id))?.encrypted_password).not.toContain('segredo1')
     expect(getToken()).toBeDefined()
@@ -235,8 +235,8 @@ describe('Entrar: cadastro real', () => {
     await waitFor(() => expect(onSignedIn).toHaveBeenCalled())
     const [account, next] = onSignedIn.mock.calls[0]
     expect(next).toBe('#/servicos')
-    expect((await dbRow('select cpf from public.profiles where id = $1', account.id))?.cpf).toBe('52998224725')
-    expect((await dbRow('select status from public.professionals where account_id = $1', account.id))?.status).toBe('rascunho')
+    expect((await dbRow('select cpf from public.contas where id = $1', account.id))?.cpf).toBe('52998224725')
+    expect((await dbRow('select status from public.prestadores where conta_id = $1', account.id))?.status).toBe('rascunho')
   })
 
   it('exige repetir a mesma senha', async () => {

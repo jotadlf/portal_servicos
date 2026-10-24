@@ -24,7 +24,7 @@ function mockViaCep(data: object) {
 const save = () => userEvent.click(screen.getByRole('button', { name: 'Salvar perfil' }))
 const saved = () => screen.findByText('Perfil salvo.')
 const photoInput = () => screen.getByLabelText('Foto do perfil')
-const accountRow = async (id: string) => (await dbRow('select * from public.profiles where id = $1', id))!
+const accountRow = async (id: string) => (await dbRow('select * from public.contas where id = $1', id))!
 // Fotos que a conta enviou ao Storage
 const uploadedBy = async (id: string) =>
   (await dbRow(`select count(*) as n from storage.objects where bucket_id = 'fotos' and name like $1`, `${id}/%`))!.n
@@ -53,14 +53,14 @@ describe('Conta: gravação real', () => {
 
     expect(await saved()).toBeInTheDocument()
     expect(await accountRow(account.id)).toMatchObject({
-      name: 'Ana Souza',
-      phone: '62999998888',
-      street: 'Rua T-30',
-      number: 'Qd 5 Lt 10',
-      complement: 'Apto 302',
-      neighborhood: 'Setor Oeste',
-      city: 'Pau-d’Arco',
-      state: 'GO',
+      nome: 'Ana Souza',
+      telefone: '62999998888',
+      rua: 'Rua T-30',
+      numero: 'Qd 5 Lt 10',
+      complemento: 'Apto 302',
+      bairro: 'Setor Oeste',
+      cidade: 'Pau-d’Arco',
+      uf: 'GO',
     })
     expect(onAccountChange).toHaveBeenCalledWith(expect.objectContaining({ name: 'Ana Souza' }))
 
@@ -90,7 +90,7 @@ describe('Conta: gravação real', () => {
     await save()
     expect(phone).toHaveAttribute('aria-invalid', 'true')
     expect(phone).toHaveAccessibleDescription(/Informe o WhatsApp com DDD/)
-    expect((await accountRow(account.id)).phone).toBe('')
+    expect((await accountRow(account.id)).telefone).toBe('')
   })
 
   it.each([
@@ -108,7 +108,7 @@ describe('Conta: gravação real', () => {
     expect(field).toHaveAttribute('aria-invalid', 'true')
     expect(field).toHaveAccessibleDescription(message)
     expect(field).toHaveFocus()
-    expect((await accountRow(account.id)).name).toBe('Ana Lima')
+    expect((await accountRow(account.id)).nome).toBe('Ana Lima')
   })
 
   // Achado da exploração: o campo cortava em 10 caracteres sem avisar
@@ -118,7 +118,7 @@ describe('Conta: gravação real', () => {
     await userEvent.type(screen.getByLabelText(/^Número/), 'Qd 12 Lt 34 Casa 2')
     await save()
     await saved()
-    expect((await accountRow(account.id)).number).toBe('Qd 12 Lt 34 Casa 2')
+    expect((await accountRow(account.id)).numero).toBe('Qd 12 Lt 34 Casa 2')
   })
 
   it('WhatsApp colado com +55 é gravado sem o código do país', async () => {
@@ -128,7 +128,7 @@ describe('Conta: gravação real', () => {
     await userEvent.paste('+55 (62) 99999-8888')
     await save()
     await saved()
-    expect((await accountRow(account.id)).phone).toBe('62999998888')
+    expect((await accountRow(account.id)).telefone).toBe('62999998888')
   })
 
   it('UF aceita só letras e recusa sigla que não existe', async () => {
@@ -170,12 +170,12 @@ describe('Conta: foto', () => {
 
     await userEvent.upload(photoInput(), PNG_FILE())
     expect(await screen.findByRole('button', { name: 'Trocar foto' })).toBeInTheDocument()
-    const photo = (await accountRow(account.id)).photo as string
+    const photo = (await accountRow(account.id)).foto as string
     expect(photo.startsWith(`${account.id}/`)).toBe(true)
     const stored = await dbRow(`select metadata from storage.objects where bucket_id = 'fotos' and name = $1`, photo)
     expect(stored?.metadata.mimetype).toBe('image/png')
     // A foto vai junto para o perfil público
-    expect((await dbRow('select photo from public.professionals where account_id = $1', account.id))?.photo).toBe(photo)
+    expect((await dbRow('select foto from public.prestadores where conta_id = $1', account.id))?.foto).toBe(photo)
 
     await save()
     expect(await saved()).toBeInTheDocument()

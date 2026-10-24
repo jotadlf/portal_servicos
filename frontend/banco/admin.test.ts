@@ -30,7 +30,7 @@ describe('Administração: permissões conferidas no banco', () => {
   it('a modalidade continua lá depois da tentativa sem permissão', async () => {
     const user = await signIn('beatriz@exemplo.com')
     await call('remover_modalidade', { id: 'eletricista' }, user)
-    expect((await row(`select count(*) as n from public.professions where id = 'eletricista'`))!.n).toBe(1)
+    expect((await row(`select count(*) as n from public.modalidades where id = 'eletricista'`))!.n).toBe(1)
   })
 
   it('quem não é admin não envia imagem de modalidade', async () => {
@@ -50,11 +50,11 @@ describe('Administração: modalidades', () => {
       admin,
     )
     expect(response.status).toBe(200)
-    expect(await row(`select * from public.professions where id = 'tecnico-de-ar-condicionado'`)).toMatchObject({
-      name: 'Técnico de Ar-condicionado',
-      tasks: ['Limpar ar', 'Instalar split'],
-      position: 9,
-      image: null,
+    expect(await row(`select * from public.modalidades where id = 'tecnico-de-ar-condicionado'`)).toMatchObject({
+      nome: 'Técnico de Ar-condicionado',
+      sugestoes: ['Limpar ar', 'Instalar split'],
+      posicao: 9,
+      imagem: null,
     })
   })
 
@@ -79,13 +79,13 @@ describe('Administração: modalidades', () => {
     const response = await call('adicionar_modalidade', body, admin)
     expect(response.status).toBe(status)
     expect(response.body.fields[field]).toBeDefined()
-    expect((await row('select count(*) as n from public.professions'))!.n).toBe(9)
+    expect((await row('select count(*) as n from public.modalidades'))!.n).toBe(9)
   })
 
   it('remover a modalidade apaga os serviços dela de todos os perfis', async () => {
-    expect((await row(`select count(*) as n from public.services where profession_id = 'eletricista'`))!.n).toBeGreaterThan(0)
+    expect((await row(`select count(*) as n from public.servicos where modalidade_id = 'eletricista'`))!.n).toBeGreaterThan(0)
     expect((await call('remover_modalidade', { id: 'eletricista' }, admin)).status).toBe(200)
-    expect((await row(`select count(*) as n from public.services where profession_id = 'eletricista'`))!.n).toBe(0)
+    expect((await row(`select count(*) as n from public.servicos where modalidade_id = 'eletricista'`))!.n).toBe(0)
     expect((await call('remover_modalidade', { id: 'eletricista' }, admin)).status).toBe(404)
   })
 })
@@ -98,13 +98,13 @@ describe('Administração: plano', () => {
       admin,
     )
     expect(response.status).toBe(200)
-    expect(await row('select * from public.plan_settings')).toMatchObject({
-      monthly_price: 25,
-      semiannual_price: 120.46,
-      trial_days: 30,
+    expect(await row('select * from public.ajustes_plano')).toMatchObject({
+      preco_mensal: 25,
+      preco_semestral: 120.46,
+      dias_teste: 30,
       gateway: 'stripe',
-      pix_enabled: false,
-      card_enabled: true,
+      pix_ativo: false,
+      cartao_ativo: true,
     })
     expect((await call('plano')).body).toMatchObject({ monthlyPrice: 25, trialDays: 30 })
   })
@@ -117,8 +117,8 @@ describe('Administração: plano', () => {
     )
     const { client, account } = await readyProvider()
     await call('publicar', { plan: 'mensal', method: 'pix' }, client)
-    const pro = await row('select trial_ends_at from public.professionals where id = $1', account.professionalId)
-    expect(pro!.trial_ends_at).toBe(todayInBrazil())
+    const pro = await row('select fim_teste from public.prestadores where id = $1', account.professionalId)
+    expect(pro!.fim_teste).toBe(todayInBrazil())
   })
 
   it.each([
@@ -136,7 +136,7 @@ describe('Administração: plano', () => {
     )
     expect(response.status).toBe(400)
     expect(response.body.fields[field]).toBeDefined()
-    expect(await row('select monthly_price, trial_days from public.plan_settings')).toEqual({ monthly_price: 19.9, trial_days: 15 })
+    expect(await row('select preco_mensal, dias_teste from public.ajustes_plano')).toEqual({ preco_mensal: 19.9, dias_teste: 15 })
   })
 })
 
@@ -172,7 +172,7 @@ describe('Administração: painel', () => {
   it('perfil da administração conta como publicado, mas não como pagante nem na receita', async () => {
     const before = (await call('estatisticas', undefined, admin)).body.stats
     const { client, account } = await readyProvider()
-    await exec('update public.profiles set is_admin = true where id = $1', account.id)
+    await exec('update public.contas set admin = true where id = $1', account.id)
     await call('publicar', {}, client)
 
     const { stats } = (await call('estatisticas', undefined, admin)).body

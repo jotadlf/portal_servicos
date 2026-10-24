@@ -6,7 +6,7 @@ import { dbExec, dbRow, loginAs, newAccount, readyProvider, todayInBrazil } from
 import { Publicar } from './Publicar'
 
 const renderPublicar = (account?: Account) => render(<Publicar account={account} onLogin={vi.fn()} />)
-const setPlan = (sql: string) => dbExec(`update public.plan_settings set ${sql}`)
+const setPlan = (sql: string) => dbExec(`update public.ajustes_plano set ${sql}`)
 const checkout = () => screen.findByRole('heading', { name: 'Publique seu perfil' })
 
 describe('Publicar', () => {
@@ -41,7 +41,7 @@ describe('Publicar', () => {
 
   it('administração publica direto, sem plano nem pagamento', async () => {
     const account = await readyProvider()
-    await dbExec('update public.profiles set is_admin = true where id = $1', account.id)
+    await dbExec('update public.contas set admin = true where id = $1', account.id)
     renderPublicar({ ...account, isAdmin: true })
 
     await screen.findByText(/Como administrador, você publica sem plano e sem pagamento/)
@@ -50,10 +50,10 @@ describe('Publicar', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Publicar perfil' }))
     await waitFor(() => expect(window.location.hash).toBe('#/servicos'))
-    expect((await dbRow('select status, plan, payment_method from public.professionals where account_id = $1', account.id))).toEqual({
+    expect((await dbRow('select status, plano, forma_pagamento from public.prestadores where conta_id = $1', account.id))).toEqual({
       status: 'publicado',
-      plan: null,
-      payment_method: null,
+      plano: null,
+      forma_pagamento: null,
     })
   })
 
@@ -66,12 +66,12 @@ describe('Publicar', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Começar 15 dias grátis e publicar' }))
 
     await waitFor(() => expect(window.location.hash).toBe('#/servicos'))
-    expect((await dbRow('select status, plan, payment_method, trial_ends_at from public.professionals where account_id = $1', account.id))).toEqual({
+    expect((await dbRow('select status, plano, forma_pagamento, fim_teste from public.prestadores where conta_id = $1', account.id))).toEqual({
       status: 'publicado',
-      plan: 'semestral',
-      payment_method: 'cartao',
+      plano: 'semestral',
+      forma_pagamento: 'cartao',
       // O banco conta no fuso do portal
-      trial_ends_at: todayInBrazil(15),
+      fim_teste: todayInBrazil(15),
     })
   })
 
@@ -84,7 +84,7 @@ describe('Publicar', () => {
   })
 
   it('mostra só as formas de pagamento ligadas na administração', async () => {
-    await setPlan('pix_enabled = false')
+    await setPlan('pix_ativo = false')
     renderPublicar(await readyProvider())
     await checkout()
     expect(screen.queryByRole('radio', { name: /Pix/ })).not.toBeInTheDocument()
@@ -92,7 +92,7 @@ describe('Publicar', () => {
   })
 
   it('não deixa publicar sem forma de pagamento', async () => {
-    await setPlan('pix_enabled = false, card_enabled = false')
+    await setPlan('pix_ativo = false, cartao_ativo = false')
     renderPublicar(await readyProvider())
     await checkout()
     expect(screen.getByText(/Nenhuma forma de pagamento está disponível/)).toBeInTheDocument()

@@ -52,9 +52,9 @@ describe('Admin: modalidades gravadas no banco', () => {
     await fill('Marceneiro', 'Montar móvel{Enter}{Enter}Consertar porta')
 
     expect(await screen.findByText('Marceneiro já aparece na página inicial.')).toBeInTheDocument()
-    const saved = await dbRow(`select name, tasks, image from public.professions where id = 'marceneiro'`)
-    expect(saved).toMatchObject({ name: 'Marceneiro', tasks: ['Montar móvel', 'Consertar porta'] })
-    expect(saved?.image).toMatch(/^modalidades\//)
+    const saved = await dbRow(`select nome, sugestoes, imagem from public.modalidades where id = 'marceneiro'`)
+    expect(saved).toMatchObject({ nome: 'Marceneiro', sugestoes: ['Montar móvel', 'Consertar porta'] })
+    expect(saved?.imagem).toMatch(/^modalidades\//)
     expect(await screen.findByText('10 modalidades no catálogo')).toBeInTheDocument()
   })
 
@@ -79,7 +79,7 @@ describe('Admin: modalidades gravadas no banco', () => {
     await userEvent.type(screen.getByLabelText('Nome'), 'Vidraceiro')
     await userEvent.click(submit)
     expect(screen.getByText(/Informe pelo menos um serviço/)).toBeInTheDocument()
-    expect((await dbRow('select count(*) as n from public.professions'))?.n).toBe(9)
+    expect((await dbRow('select count(*) as n from public.modalidades'))?.n).toBe(9)
   })
 
   it('recusa imagem SVG', async () => {
@@ -96,12 +96,12 @@ describe('Admin: modalidades gravadas no banco', () => {
     await openTab('Modalidades')
     await userEvent.click(await screen.findByRole('button', { name: 'Remover Eletricista' }))
     await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
-    expect((await dbRow(`select count(*) as n from public.professions where id = 'eletricista'`))?.n).toBe(1)
+    expect((await dbRow(`select count(*) as n from public.modalidades where id = 'eletricista'`))?.n).toBe(1)
 
     await userEvent.click(screen.getByRole('button', { name: 'Remover Eletricista' }))
     await userEvent.click(screen.getByRole('button', { name: /^Remover e apagar \d+ serviços$/ }))
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Remover Eletricista' })).not.toBeInTheDocument())
-    expect((await dbRow(`select count(*) as n from public.services where profession_id = 'eletricista'`))?.n).toBe(0)
+    expect((await dbRow(`select count(*) as n from public.servicos where modalidade_id = 'eletricista'`))?.n).toBe(0)
   })
 })
 
@@ -119,9 +119,9 @@ describe('Admin: plano e pagamentos gravados no banco', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Salvar configurações' }))
 
     expect(await screen.findByText(/Configurações salvas/)).toBeInTheDocument()
-    expect((await dbRow('select monthly_price, trial_days, gateway from public.plan_settings'))).toEqual({
-      monthly_price: 25,
-      trial_days: 30,
+    expect((await dbRow('select preco_mensal, dias_teste, gateway from public.ajustes_plano'))).toEqual({
+      preco_mensal: 25,
+      dias_teste: 30,
       gateway: 'stripe',
     })
   })
@@ -133,7 +133,7 @@ describe('Admin: plano e pagamentos gravados no banco', () => {
     await userEvent.type(semiannual, '1.234,50')
     await userEvent.click(screen.getByRole('button', { name: 'Salvar configurações' }))
     await screen.findByText(/Configurações salvas/)
-    expect((await dbRow('select semiannual_price from public.plan_settings'))?.semiannual_price).toBe(1234.5)
+    expect((await dbRow('select preco_semestral from public.ajustes_plano'))?.preco_semestral).toBe(1234.5)
   })
 
   // Achado da exploração: "19.90" era gravado como 1990
@@ -148,7 +148,7 @@ describe('Admin: plano e pagamentos gravados no banco', () => {
     await userEvent.type(monthly, typed)
     await userEvent.click(screen.getByRole('button', { name: 'Salvar configurações' }))
     await screen.findByText(/Configurações salvas/)
-    expect((await dbRow('select monthly_price from public.plan_settings'))?.monthly_price).toBe(expected)
+    expect((await dbRow('select preco_mensal from public.ajustes_plano'))?.preco_mensal).toBe(expected)
   })
 
   it('recusa preço ambíguo ("1.234" sem vírgula)', async () => {
@@ -183,6 +183,6 @@ describe('Admin: plano e pagamentos gravados no banco', () => {
     await userEvent.click(screen.getByRole('checkbox', { name: 'Cartão de crédito' }))
     await userEvent.click(submit)
     expect(screen.getByText('Deixe pelo menos uma forma de pagamento ligada.')).toBeInTheDocument()
-    expect((await dbRow('select monthly_price, trial_days from public.plan_settings'))).toEqual({ monthly_price: 19.9, trial_days: 15 })
+    expect((await dbRow('select preco_mensal, dias_teste from public.ajustes_plano'))).toEqual({ preco_mensal: 19.9, dias_teste: 15 })
   })
 })

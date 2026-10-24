@@ -15,11 +15,11 @@ language plpgsql security definer set search_path = ''
 as $$
 begin
   delete from auth.users;
-  delete from public.professionals;
-  delete from public.professions;
-  delete from public.plan_settings;
+  delete from public.prestadores;
+  delete from public.modalidades;
+  delete from public.ajustes_plano;
 
-  insert into public.professions (id, name, tasks, position) values
+  insert into public.modalidades (id, nome, sugestoes, posicao) values
     ('eletricista', 'Eletricista', '{"Instalar chuveiro","Trocar tomada ou interruptor","Revisar quadro de energia"}', 0),
     ('faxineira', 'Faxineira', '{"Faxina completa","Limpeza pós-obra","Limpeza de vidros"}', 1),
     ('diarista', 'Diarista', '{"Diária de limpeza","Passar roupa","Organizar armários"}', 2),
@@ -30,7 +30,7 @@ begin
     ('jardineiro', 'Jardineiro', '{"Podar árvores","Plantar grama","Limpar lote"}', 7),
     ('chaveiro', 'Chaveiro', '{"Abrir porta","Trocar fechadura","Fazer cópia de chave"}', 8);
 
-  -- O perfil (public.profiles) nasce pelo gatilho nova_conta
+  -- A conta (public.contas) nasce pelo gatilho nova_conta
   insert into auth.users (
     instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
     raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
@@ -52,14 +52,14 @@ begin
     jsonb_build_object('sub', u.id::text, 'email', u.email, 'email_verified', true), 'email', now(), now(), now()
   from auth.users u;
 
-  update public.profiles set neighborhood = 'Setor Bueno', city = 'Goiânia', state = 'GO', is_admin = false, phone = '62900000001', photo = 'exemplos/p1.png'
+  update public.contas set bairro = 'Setor Bueno', cidade = 'Goiânia', uf = 'GO', admin = false, telefone = '62900000001', foto = 'exemplos/p1.png'
   where id = '00000000-0000-4000-8000-000000000001';
-  update public.profiles set neighborhood = 'Setor Marista', city = 'Goiânia', state = 'GO', is_admin = false, phone = '', photo = null
+  update public.contas set bairro = 'Setor Marista', cidade = 'Goiânia', uf = 'GO', admin = false, telefone = '', foto = null
   where id = '00000000-0000-4000-8000-000000000002';
-  update public.profiles set neighborhood = '', city = '', state = '', is_admin = true, phone = '', photo = null
+  update public.contas set bairro = '', cidade = '', uf = '', admin = true, telefone = '', foto = null
   where id = '00000000-0000-4000-8000-000000000003';
 
-  insert into public.professionals (id, account_id, name, neighborhood, whatsapp, photo, about, status, rating, reviews)
+  insert into public.prestadores (id, conta_id, nome, bairro, whatsapp, foto, sobre, status, nota, total_avaliacoes)
   values
     ('p1', '00000000-0000-4000-8000-000000000001'::uuid, 'Carlos Henrique', 'Setor Bueno', '62900000001', 'exemplos/p1.png', 'Eletricista há 15 anos, atendo casas e apartamentos na região sul. Levo o material básico e deixo tudo limpo no final.', 'publicado', 4.9, 132),
     ('p2', null, 'Marcos Vinícius', 'Jardim América', '62900000002', 'exemplos/p2.png', '', 'publicado', 4.7, 58),
@@ -86,7 +86,7 @@ begin
     ('p23', null, 'Ricardo Lopes', 'Setor Central', '62900000023', 'exemplos/p23.png', 'Atendimento 24 horas para abertura de portas.', 'publicado', 4.9, 301),
     ('p24', null, 'Mateus Freitas', 'Setor Sul', '62900000024', 'exemplos/p24.png', '', 'publicado', 4.4, 76);
 
-  insert into public.services (professional_id, profession_id, name, price, position) values
+  insert into public.servicos (prestador_id, modalidade_id, nome, preco, posicao) values
     ('p1', 'eletricista', 'Instalar chuveiro', 150, 0),
     ('p1', 'eletricista', 'Trocar tomada ou interruptor', 60, 1),
     ('p1', 'eletricista', 'Revisar quadro de energia', 250, 2),
@@ -151,7 +151,7 @@ begin
     ('p24', 'chaveiro', 'Fazer cópia de chave', 12, 0),
     ('p24', 'chaveiro', 'Trocar fechadura', 140, 1);
 
-  insert into public.reviews (id, professional_id, author, rating, comment, date) values
+  insert into public.avaliacoes (id, prestador_id, autor, nota, comentario, data) values
     ('r1', 'p1', 'Fernanda', 5, 'Instalou o chuveiro rapidinho e explicou tudo. Muito educado.', '2026-10-12'),
     ('r2', 'p1', 'Roberto', 5, 'Chegou no horário combinado e o preço foi o que tinha falado.', '2026-10-03'),
     ('r3', 'p1', 'Juliana', 4, 'Bom serviço, só demorou um pouco para responder.', '2026-09-21'),
@@ -160,13 +160,13 @@ begin
     ('r6', 'p4', 'Lucas', 4, 'Caprichosa e pontual.', '2026-09-30'),
     ('r7', 'p23', 'Carla', 5, 'Abriu a porta em dez minutos, de madrugada.', '2026-10-15');
 
-  insert into public.contacts (id, professional_id, client, task, message, neighborhood, date, answered) values
+  insert into public.contatos (id, prestador_id, cliente, servico, mensagem, bairro, data, respondido) values
     ('c1', 'p1', 'Beatriz', 'Instalar chuveiro', 'Chuveiro novo de 220V, o antigo queimou.', 'Setor Bueno', '2026-10-19', false),
     ('c2', 'p1', 'André', 'Revisar quadro de energia', 'O disjuntor desarma quando ligo o forno.', 'Setor Marista', '2026-10-18', false),
     ('c3', 'p1', 'Sônia', 'Trocar tomada ou interruptor', 'São 4 tomadas na sala e 2 interruptores.', 'Setor Oeste', '2026-10-15', true),
     ('c4', 'p1', 'Gabriel', 'Instalar chuveiro', '', 'Jardim América', '2026-10-11', true);
 
-  insert into public.plan_settings (id, monthly_price, semiannual_price, trial_days, gateway, pix_enabled, card_enabled)
+  insert into public.ajustes_plano (id, preco_mensal, preco_semestral, dias_teste, gateway, pix_ativo, cartao_ativo)
   values (1, 19.9, 99.9, 15, 'mercadopago', true, true);
 end
 $$;

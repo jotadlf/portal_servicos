@@ -18,125 +18,125 @@ revoke all on schema interno from public, anon, authenticated;
 -- ---------- tabelas ----------
 
 -- Dados da conta; o login (e-mail e senha) fica no Supabase Auth
-create table public.profiles (
+create table public.contas (
   id uuid primary key references auth.users (id) on delete cascade,
   -- Sempre minúsculo e sem espaços nas pontas
   email text not null,
-  name text not null,
+  nome text not null,
   -- Só dígitos, com DDD
-  phone text not null default '',
+  telefone text not null default '',
   -- Só dígitos; pedido apenas de quem oferece serviços. Nunca sai do banco.
   cpf text unique,
   -- Caminho no bucket "fotos" (ou exemplos/… nas fotos de exemplo, que vêm do próprio app)
-  photo text,
+  foto text,
   cep text not null default '',
-  street text not null default '',
-  number text not null default '',
-  complement text not null default '',
-  neighborhood text not null default '',
-  city text not null default '',
-  state text not null default '',
-  is_admin boolean not null default false,
-  created_at timestamptz not null default now()
+  rua text not null default '',
+  numero text not null default '',
+  complemento text not null default '',
+  bairro text not null default '',
+  cidade text not null default '',
+  uf text not null default '',
+  admin boolean not null default false,
+  criado_em timestamptz not null default now()
 );
 
-create table public.professions (
+create table public.modalidades (
   id text primary key,
-  name text not null,
+  nome text not null,
   -- Serviços sugeridos
-  tasks text[] not null,
+  sugestoes text[] not null,
   -- Caminho no bucket "fotos"; as modalidades de fábrica usam a imagem do app
-  image text,
-  position integer not null
+  imagem text,
+  posicao integer not null
 );
 
-create table public.professionals (
+create table public.prestadores (
   id text primary key default 'p-' || gen_random_uuid(),
   -- Prestadores de exemplo não têm conta de login
-  account_id uuid unique references public.profiles (id) on delete cascade,
+  conta_id uuid unique references public.contas (id) on delete cascade,
   -- Dados públicos, copiados da conta quando ela é salva
-  name text not null,
-  neighborhood text not null default '',
+  nome text not null,
+  bairro text not null default '',
   whatsapp text not null default '',
-  photo text,
-  about text not null default '',
+  foto text,
+  sobre text not null default '',
   status text not null default 'rascunho' check (status in ('rascunho', 'publicado')),
-  plan text check (plan in ('mensal', 'semestral')),
-  payment_method text check (payment_method in ('pix', 'cartao')),
-  trial_ends_at date,
-  rating numeric(2, 1) not null default 0,
-  reviews integer not null default 0,
-  created_at timestamptz not null default now()
+  plano text check (plano in ('mensal', 'semestral')),
+  forma_pagamento text check (forma_pagamento in ('pix', 'cartao')),
+  fim_teste date,
+  nota numeric(2, 1) not null default 0,
+  total_avaliacoes integer not null default 0,
+  criado_em timestamptz not null default now()
 );
 
-create table public.services (
+create table public.servicos (
   id bigint generated always as identity primary key,
-  professional_id text not null references public.professionals (id) on delete cascade,
+  prestador_id text not null references public.prestadores (id) on delete cascade,
   -- Remover a modalidade apaga os serviços dela
-  profession_id text not null references public.professions (id) on delete cascade,
-  name text not null,
+  modalidade_id text not null references public.modalidades (id) on delete cascade,
+  nome text not null,
   -- Reais inteiros; NULL = a combinar
-  price integer check (price is null or price >= 0),
+  preco integer check (preco is null or preco >= 0),
   -- Como o preço é cobrado
-  unit text not null default 'servico' check (unit in ('diaria', 'm2', 'empreita', 'servico', 'hora')),
-  position integer not null
+  unidade text not null default 'servico' check (unidade in ('diaria', 'm2', 'empreita', 'servico', 'hora')),
+  posicao integer not null
 );
 
-create index services_by_professional on public.services (professional_id);
-create index services_by_task on public.services (profession_id, name);
+create index servicos_por_prestador on public.servicos (prestador_id);
+create index servicos_por_modalidade on public.servicos (modalidade_id, nome);
 
-create table public.reviews (
+create table public.avaliacoes (
   id text primary key default gen_random_uuid()::text,
-  professional_id text not null references public.professionals (id) on delete cascade,
-  author text not null,
-  rating integer not null check (rating between 1 and 5),
-  comment text not null,
-  date date not null
+  prestador_id text not null references public.prestadores (id) on delete cascade,
+  autor text not null,
+  nota integer not null check (nota between 1 and 5),
+  comentario text not null,
+  data date not null
 );
 
-create index reviews_by_professional on public.reviews (professional_id);
+create index avaliacoes_por_prestador on public.avaliacoes (prestador_id);
 
-create table public.contacts (
+create table public.contatos (
   id text primary key default gen_random_uuid()::text,
-  professional_id text not null references public.professionals (id) on delete cascade,
-  client text not null,
-  task text not null,
-  message text not null default '',
-  neighborhood text not null default '',
-  date date not null,
-  answered boolean not null default false
+  prestador_id text not null references public.prestadores (id) on delete cascade,
+  cliente text not null,
+  servico text not null,
+  mensagem text not null default '',
+  bairro text not null default '',
+  data date not null,
+  respondido boolean not null default false
 );
 
-create index contacts_by_professional on public.contacts (professional_id);
+create index contatos_por_prestador on public.contatos (prestador_id);
 
 -- Uma linha só, editada na administração
-create table public.plan_settings (
+create table public.ajustes_plano (
   id integer primary key check (id = 1),
-  monthly_price numeric(10, 2) not null,
-  semiannual_price numeric(10, 2) not null,
-  trial_days integer not null,
+  preco_mensal numeric(10, 2) not null,
+  preco_semestral numeric(10, 2) not null,
+  dias_teste integer not null,
   gateway text not null check (gateway in ('mercadopago', 'stripe', 'pagseguro')),
-  pix_enabled boolean not null,
-  card_enabled boolean not null
+  pix_ativo boolean not null,
+  cartao_ativo boolean not null
 );
 
 -- Fechadas para a API: só as funções de baixo mexem nelas
-alter table public.profiles enable row level security;
-alter table public.professions enable row level security;
-alter table public.professionals enable row level security;
-alter table public.services enable row level security;
-alter table public.reviews enable row level security;
-alter table public.contacts enable row level security;
-alter table public.plan_settings enable row level security;
+alter table public.contas enable row level security;
+alter table public.modalidades enable row level security;
+alter table public.prestadores enable row level security;
+alter table public.servicos enable row level security;
+alter table public.avaliacoes enable row level security;
+alter table public.contatos enable row level security;
+alter table public.ajustes_plano enable row level security;
 revoke all on all tables in schema public from anon, authenticated;
 revoke all on all sequences in schema public from anon, authenticated;
 
 -- Valores de fábrica; a administração muda depois
-insert into public.plan_settings (id, monthly_price, semiannual_price, trial_days, gateway, pix_enabled, card_enabled)
+insert into public.ajustes_plano (id, preco_mensal, preco_semestral, dias_teste, gateway, pix_ativo, cartao_ativo)
 values (1, 19.90, 99.90, 15, 'mercadopago', true, true)
 on conflict (id) do nothing;
 
-insert into public.professions (id, name, tasks, position) values
+insert into public.modalidades (id, nome, sugestoes, posicao) values
   ('eletricista', 'Eletricista', array['Instalar chuveiro', 'Trocar tomada ou interruptor', 'Revisar quadro de energia'], 0),
   ('faxineira', 'Faxineira', array['Faxina completa', 'Limpeza pós-obra', 'Limpeza de vidros'], 1),
   ('diarista', 'Diarista', array['Diária de limpeza', 'Passar roupa', 'Organizar armários'], 2),
@@ -165,7 +165,7 @@ language sql stable security definer set search_path = ''
 as $$
   select (storage.foldername(caminho))[1] = auth.uid()::text
     or ((storage.foldername(caminho))[1] = 'modalidades'
-        and exists (select 1 from public.profiles where id = auth.uid() and is_admin))
+        and exists (select 1 from public.contas where id = auth.uid() and admin))
 $$;
 
 grant usage on schema interno to authenticated;
@@ -331,13 +331,13 @@ as $$ select (now() at time zone 'America/Sao_Paulo')::date $$;
 
 -- ---------- apoio: quem está chamando ----------
 
-create function interno.conta_atual() returns public.profiles
+create function interno.conta_atual() returns public.contas
 language plpgsql stable
 as $$
 declare
-  conta public.profiles;
+  conta public.contas;
 begin
-  select * into conta from public.profiles where id = auth.uid();
+  select * into conta from public.contas where id = auth.uid();
   if not found then
     perform interno.erro(401, 'Entre na sua conta para continuar.');
   end if;
@@ -345,27 +345,27 @@ begin
 end
 $$;
 
-create function interno.exigir_admin() returns public.profiles
+create function interno.exigir_admin() returns public.contas
 language plpgsql stable
 as $$
 declare
-  conta public.profiles := interno.conta_atual();
+  conta public.contas := interno.conta_atual();
 begin
-  if not conta.is_admin then
+  if not conta.admin then
     perform interno.erro(403, 'Esta área é só para a administração do portal.');
   end if;
   return conta;
 end
 $$;
 
-create function interno.prestador_proprio() returns public.professionals
+create function interno.prestador_proprio() returns public.prestadores
 language plpgsql stable
 as $$
 declare
-  pro public.professionals;
+  pro public.prestadores;
 begin
   perform interno.conta_atual();
-  select * into pro from public.professionals where account_id = auth.uid();
+  select * into pro from public.prestadores where conta_id = auth.uid();
   if not found then
     perform interno.erro(403, 'Você ainda não oferece serviços.');
   end if;
@@ -376,58 +376,58 @@ $$;
 -- ---------- apoio: respostas em JSON (o mesmo formato da API antiga) ----------
 
 -- O que a própria pessoa vê da conta. CPF nunca sai.
-create function interno.conta_json(conta_id uuid) returns jsonb
+create function interno.conta_json(alvo uuid) returns jsonb
 language sql stable
 as $$
   select jsonb_build_object(
       'id', a.id,
       'email', a.email,
-      'name', a.name,
-      'phone', a.phone,
+      'name', a.nome,
+      'phone', a.telefone,
       'address', jsonb_build_object(
-        'cep', a.cep, 'street', a.street, 'number', a.number, 'complement', a.complement,
-        'neighborhood', a.neighborhood, 'city', a.city, 'state', a.state
+        'cep', a.cep, 'street', a.rua, 'number', a.numero, 'complement', a.complemento,
+        'neighborhood', a.bairro, 'city', a.cidade, 'state', a.uf
       )
     ) || jsonb_strip_nulls(jsonb_build_object(
-      'photo', a.photo,
+      'photo', a.foto,
       'professionalId', p.id,
-      'isAdmin', case when a.is_admin then true end
+      'isAdmin', case when a.admin then true end
     ))
-  from public.profiles a
-  left join public.professionals p on p.account_id = a.id
-  where a.id = conta_id
+  from public.contas a
+  left join public.prestadores p on p.conta_id = a.id
+  where a.id = alvo
 $$;
 
 -- Sem login: só o primeiro nome, sem foto, preços nem WhatsApp. Esses dados nem saem do banco.
-create function interno.prestador_json(pro public.professionals, completo boolean) returns jsonb
+create function interno.prestador_json(pro public.prestadores, completo boolean) returns jsonb
 language sql stable
 as $$
   select jsonb_build_object(
       'id', pro.id,
-      'name', case when completo then pro.name else split_part(pro.name, ' ', 1) end,
+      'name', case when completo then pro.nome else split_part(pro.nome, ' ', 1) end,
       'services', coalesce((
         select jsonb_agg(
           jsonb_build_object(
-            'professionId', s.profession_id,
-            'name', s.name,
-            'price', case when completo then s.price end,
+            'professionId', s.modalidade_id,
+            'name', s.nome,
+            'price', case when completo then s.preco end,
             -- A unidade não é sigilosa: aparece mesmo com o preço escondido
-            'unit', s.unit
-          ) || case when not completo and s.price is not null then '{"hidden": true}'::jsonb else '{}'::jsonb end
-          order by s.position, s.id
+            'unit', s.unidade
+          ) || case when not completo and s.preco is not null then '{"hidden": true}'::jsonb else '{}'::jsonb end
+          order by s.posicao, s.id
         )
-        from public.services s
-        where s.professional_id = pro.id
+        from public.servicos s
+        where s.prestador_id = pro.id
       ), '[]'::jsonb),
       'status', pro.status,
-      'rating', pro.rating,
-      'reviews', pro.reviews,
-      'neighborhood', pro.neighborhood
+      'rating', pro.nota,
+      'reviews', pro.total_avaliacoes,
+      'neighborhood', pro.bairro
     ) || jsonb_strip_nulls(jsonb_build_object(
-      'photo', case when completo then pro.photo end,
-      'trialEndsAt', pro.trial_ends_at,
-      'plan', pro.plan,
-      'about', nullif(pro.about, ''),
+      'photo', case when completo then pro.foto end,
+      'trialEndsAt', pro.fim_teste,
+      'plan', pro.plano,
+      'about', nullif(pro.sobre, ''),
       'whatsapp', case when completo then nullif(pro.whatsapp, '') end
     ))
 $$;
@@ -436,14 +436,14 @@ create function interno.plano_json() returns jsonb
 language sql stable
 as $$
   select jsonb_build_object(
-    'monthlyPrice', monthly_price::float8,
-    'semiannualPrice', semiannual_price::float8,
-    'trialDays', trial_days,
+    'monthlyPrice', preco_mensal::float8,
+    'semiannualPrice', preco_semestral::float8,
+    'trialDays', dias_teste,
     'gateway', gateway,
-    'pixEnabled', pix_enabled,
-    'cardEnabled', card_enabled
+    'pixEnabled', pix_ativo,
+    'cardEnabled', cartao_ativo
   )
-  from public.plan_settings
+  from public.ajustes_plano
   where id = 1
 $$;
 
@@ -500,18 +500,18 @@ begin
   if exists (select 1 from auth.users u where lower(u.email) = email_informado) then
     perform interno.erro_campo('email', 'Já existe uma conta com esse e-mail. Entre com ele ou use outro.', 409);
   end if;
-  if cadastro.cpf is not null and exists (select 1 from public.profiles a where a.cpf = cadastro.cpf) then
+  if cadastro.cpf is not null and exists (select 1 from public.contas a where a.cpf = cadastro.cpf) then
     perform interno.erro_campo('cpf', 'Já existe uma conta de prestador com esse CPF.', 409);
   end if;
 end
 $$;
 
 -- Cria o perfil de prestador (rascunho) com os dados públicos da conta
-create function interno.criar_prestador(conta public.profiles) returns void
+create function interno.criar_prestador(conta public.contas) returns void
 language sql
 as $$
-  insert into public.professionals (account_id, name, neighborhood, whatsapp, photo)
-  values (conta.id, conta.name, conta.neighborhood, conta.phone, conta.photo)
+  insert into public.prestadores (conta_id, nome, bairro, whatsapp, foto)
+  values (conta.id, conta.nome, conta.bairro, conta.telefone, conta.foto)
 $$;
 
 -- Conta nova no Supabase Auth: cria o perfil com os dados que vieram no signUp.
@@ -522,10 +522,10 @@ as $$
 declare
   dados jsonb := coalesce(new.raw_user_meta_data, '{}'::jsonb);
   cadastro record;
-  conta public.profiles;
+  conta public.contas;
 begin
   select * into cadastro from interno.dados_cadastro(dados);
-  insert into public.profiles (id, email, name, cpf)
+  insert into public.contas (id, email, nome, cpf)
   values (new.id, lower(new.email), cadastro.nome, cadastro.cpf)
   returning * into conta;
   if cadastro.cpf is not null then
@@ -543,7 +543,7 @@ create function public.minha_conta(p jsonb default '{}') returns jsonb
 language plpgsql security definer set search_path = ''
 as $$
 declare
-  conta public.profiles := interno.conta_atual();
+  conta public.contas := interno.conta_atual();
 begin
   return interno.conta_json(conta.id);
 end
@@ -553,21 +553,22 @@ create function public.salvar_conta(p jsonb default '{}') returns jsonb
 language plpgsql security definer set search_path = ''
 as $$
 declare
-  conta public.profiles := interno.conta_atual();
+  conta public.contas := interno.conta_atual();
   dados jsonb := interno.objeto(p);
   endereco jsonb := coalesce(dados -> 'address', '{}'::jsonb);
-  nome text := interno.nome_pessoa(dados);
-  telefone text;
-  codigo_postal text;
-  rua text;
-  numero text;
-  complemento text;
-  bairro text;
-  cidade text;
-  uf text;
+  -- Prefixo "novo_" para não confundir com as colunas de mesmo nome
+  novo_nome text := interno.nome_pessoa(dados);
+  novo_telefone text;
+  novo_cep text;
+  nova_rua text;
+  novo_numero text;
+  novo_complemento text;
+  novo_bairro text;
+  nova_cidade text;
+  nova_uf text;
 begin
-  telefone := interno.so_digitos(interno.texto(dados, 'phone', 20, 'O WhatsApp'));
-  if telefone <> '' and not interno.telefone_valido(telefone) then
+  novo_telefone := interno.so_digitos(interno.texto(dados, 'phone', 20, 'O WhatsApp'));
+  if novo_telefone <> '' and not interno.telefone_valido(novo_telefone) then
     perform interno.erro_campo('phone', 'Informe o WhatsApp com DDD, por exemplo (62) 99999-9999.');
   end if;
 
@@ -577,36 +578,36 @@ begin
   if jsonb_typeof(endereco) <> 'object' then
     perform interno.erro_campo('address', 'Endereço em formato inválido.');
   end if;
-  codigo_postal := interno.so_digitos(interno.texto(endereco, 'cep', 9, 'O CEP'));
-  if codigo_postal <> '' and char_length(codigo_postal) <> 8 then
+  novo_cep := interno.so_digitos(interno.texto(endereco, 'cep', 9, 'O CEP'));
+  if novo_cep <> '' and char_length(novo_cep) <> 8 then
     perform interno.erro_campo('cep', 'Complete os 8 números do CEP.');
   end if;
-  rua := interno.texto(endereco, 'street', 80, 'A rua');
-  numero := interno.texto(endereco, 'number', 20, 'O número');
-  complemento := interno.texto(endereco, 'complement', 60, 'O complemento');
-  bairro := interno.texto(endereco, 'neighborhood', 50, 'O bairro');
-  cidade := interno.colapsar(interno.texto(endereco, 'city', 50, 'A cidade'));
-  if cidade <> '' and not interno.nome_valido(cidade) then
+  nova_rua := interno.texto(endereco, 'street', 80, 'A rua');
+  novo_numero := interno.texto(endereco, 'number', 20, 'O número');
+  novo_complemento := interno.texto(endereco, 'complement', 60, 'O complemento');
+  novo_bairro := interno.texto(endereco, 'neighborhood', 50, 'O bairro');
+  nova_cidade := interno.colapsar(interno.texto(endereco, 'city', 50, 'A cidade'));
+  if nova_cidade <> '' and not interno.nome_valido(nova_cidade) then
     perform interno.erro_campo('city', 'Use só letras no nome da cidade.');
   end if;
-  uf := upper(interno.texto(endereco, 'state', 2, 'A UF'));
-  if uf <> '' and not interno.uf_valida(uf) then
+  nova_uf := upper(interno.texto(endereco, 'state', 2, 'A UF'));
+  if nova_uf <> '' and not interno.uf_valida(nova_uf) then
     perform interno.erro_campo('state', 'UF inválida.');
   end if;
 
   -- A foto é enviada antes (definir_foto); aqui só confere que existe
-  if conta.photo is null and exists (select 1 from public.professionals where account_id = conta.id) then
+  if conta.foto is null and exists (select 1 from public.prestadores where conta_id = conta.id) then
     perform interno.erro_campo('photo', 'Adicione uma foto: ela aparece no seu perfil de prestador.');
   end if;
 
-  update public.profiles
-  set name = nome, phone = telefone, cep = codigo_postal, street = rua, number = numero,
-      complement = complemento, neighborhood = bairro, city = cidade, state = uf
+  update public.contas
+  set nome = novo_nome, telefone = novo_telefone, cep = novo_cep, rua = nova_rua, numero = novo_numero,
+      complemento = novo_complemento, bairro = novo_bairro, cidade = nova_cidade, uf = nova_uf
   where id = conta.id;
   -- O perfil público usa os dados da conta; do endereço, só o bairro aparece
-  update public.professionals
-  set name = nome, whatsapp = telefone, neighborhood = bairro
-  where account_id = conta.id;
+  update public.prestadores
+  set nome = novo_nome, whatsapp = novo_telefone, bairro = novo_bairro
+  where conta_id = conta.id;
   return interno.conta_json(conta.id);
 end
 $$;
@@ -616,15 +617,15 @@ create function public.definir_foto(p jsonb default '{}') returns jsonb
 language plpgsql security definer set search_path = ''
 as $$
 declare
-  conta public.profiles := interno.conta_atual();
+  conta public.contas := interno.conta_atual();
   caminho text := interno.texto(interno.objeto(p), 'path', 200, 'A foto');
 begin
   if (storage.foldername(caminho))[1] is distinct from conta.id::text
      or not exists (select 1 from storage.objects o where o.bucket_id = 'fotos' and o.name = caminho) then
     perform interno.erro_campo('photo', 'Escolha um arquivo de imagem, como JPG ou PNG.');
   end if;
-  update public.profiles set photo = caminho where id = conta.id;
-  update public.professionals set photo = caminho where account_id = conta.id;
+  update public.contas set foto = caminho where id = conta.id;
+  update public.prestadores set foto = caminho where conta_id = conta.id;
   return interno.conta_json(conta.id);
 end
 $$;
@@ -634,9 +635,9 @@ create function public.virar_prestador(p jsonb default '{}') returns jsonb
 language plpgsql security definer set search_path = ''
 as $$
 declare
-  conta public.profiles := interno.conta_atual();
+  conta public.contas := interno.conta_atual();
 begin
-  if not exists (select 1 from public.professionals where account_id = conta.id) then
+  if not exists (select 1 from public.prestadores where conta_id = conta.id) then
     perform interno.criar_prestador(conta);
   end if;
   return interno.conta_json(conta.id);
@@ -656,14 +657,14 @@ declare
 begin
   return coalesce((
     select jsonb_agg(interno.prestador_json(pro, auth.uid() is not null)
-                     order by (pro.rating * pro.reviews + 4 * 10) / (pro.reviews + 10) desc, pro.id)
-    from public.professionals pro
+                     order by (pro.nota * pro.total_avaliacoes + 4 * 10) / (pro.total_avaliacoes + 10) desc, pro.id)
+    from public.prestadores pro
     where pro.status = 'publicado'
       and exists (
-        select 1 from public.services s
-        where s.professional_id = pro.id
-          and s.profession_id = coalesce(dados ->> 'profissao', '')
-          and s.name = coalesce(dados ->> 'servico', '')
+        select 1 from public.servicos s
+        where s.prestador_id = pro.id
+          and s.modalidade_id = coalesce(dados ->> 'profissao', '')
+          and s.nome = coalesce(dados ->> 'servico', '')
       )
   ), '[]'::jsonb);
 end
@@ -673,11 +674,11 @@ create function public.prestador(p jsonb default '{}') returns jsonb
 language plpgsql security definer set search_path = ''
 as $$
 declare
-  pro public.professionals;
+  pro public.prestadores;
 begin
-  select * into pro from public.professionals where id = interno.objeto(p) ->> 'id';
+  select * into pro from public.prestadores where id = interno.objeto(p) ->> 'id';
   -- Rascunho só aparece para o próprio prestador
-  if not found or (pro.status <> 'publicado' and pro.account_id is distinct from auth.uid()) then
+  if not found or (pro.status <> 'publicado' and pro.conta_id is distinct from auth.uid()) then
     perform interno.erro(404, 'Não encontramos este prestador.');
   end if;
   return interno.prestador_json(pro, auth.uid() is not null);
@@ -690,12 +691,12 @@ as $$
 begin
   return coalesce((
     select jsonb_agg(jsonb_build_object(
-      'id', r.id, 'professionalId', r.professional_id, 'author', r.author,
-      'rating', r.rating, 'comment', r.comment, 'date', r.date
-    ) order by r.date desc, r.id)
-    from public.reviews r
-    join public.professionals pro on pro.id = r.professional_id
-    where r.professional_id = interno.objeto(p) ->> 'id' and pro.status = 'publicado'
+      'id', r.id, 'professionalId', r.prestador_id, 'author', r.autor,
+      'rating', r.nota, 'comment', r.comentario, 'date', r.data
+    ) order by r.data desc, r.id)
+    from public.avaliacoes r
+    join public.prestadores pro on pro.id = r.prestador_id
+    where r.prestador_id = interno.objeto(p) ->> 'id' and pro.status = 'publicado'
   ), '[]'::jsonb);
 end
 $$;
@@ -712,14 +713,15 @@ create function public.salvar_servicos(p jsonb default '{}') returns jsonb
 language plpgsql security definer set search_path = ''
 as $$
 declare
-  pro public.professionals := interno.prestador_proprio();
+  pro public.prestadores := interno.prestador_proprio();
   lista jsonb := interno.objeto(p) -> 'services';
   item jsonb;
   profissao text;
-  nome text;
+  -- Sufixo "_item" para não confundir com as colunas de mesmo nome
+  nome_item text;
   chave text;
-  preco jsonb;
-  unidade text;
+  preco_item jsonb;
+  unidade_item text;
   vistos text[] := '{}';
   profissoes text[] := '{}';
   nomes text[] := '{}';
@@ -738,45 +740,45 @@ begin
       item := '{}'::jsonb;
     end if;
     profissao := case when jsonb_typeof(item -> 'professionId') = 'string' then item ->> 'professionId' else '' end;
-    if not exists (select 1 from public.professions where id = profissao) then
+    if not exists (select 1 from public.modalidades where id = profissao) then
       perform interno.erro_campo('professionId', 'Escolha uma profissão do catálogo.');
     end if;
-    nome := interno.colapsar(interno.texto(item, 'name', 60, 'O nome do serviço'));
-    if nome = '' then
+    nome_item := interno.colapsar(interno.texto(item, 'name', 60, 'O nome do serviço'));
+    if nome_item = '' then
       perform interno.erro_campo('name', 'Informe o nome do serviço.');
     end if;
-    chave := profissao || '|' || interno.normalizar(nome);
+    chave := profissao || '|' || interno.normalizar(nome_item);
     if chave = any (vistos) then
       perform interno.erro_campo('name', 'Você já tem um serviço com esse nome nesta profissão.');
     end if;
     vistos := vistos || chave;
 
-    preco := coalesce(item -> 'price', 'null'::jsonb);
-    if preco <> 'null'::jsonb and (
-      jsonb_typeof(preco) <> 'number'
-      or preco::text::numeric <> trunc(preco::text::numeric)
-      or preco::text::numeric < 0
-      or preco::text::numeric > 999999
+    preco_item := coalesce(item -> 'price', 'null'::jsonb);
+    if preco_item <> 'null'::jsonb and (
+      jsonb_typeof(preco_item) <> 'number'
+      or preco_item::text::numeric <> trunc(preco_item::text::numeric)
+      or preco_item::text::numeric < 0
+      or preco_item::text::numeric > 999999
     ) then
       perform interno.erro_campo('price', 'Informe o preço em reais inteiros, até 999999.');
     end if;
 
     -- Sem unidade (clientes antigos): por serviço
-    unidade := coalesce(item ->> 'unit', 'servico');
-    if unidade not in ('diaria', 'm2', 'empreita', 'servico', 'hora') then
+    unidade_item := coalesce(item ->> 'unit', 'servico');
+    if unidade_item not in ('diaria', 'm2', 'empreita', 'servico', 'hora') then
       perform interno.erro_campo('unit', 'Escolha como o preço é cobrado.');
     end if;
 
     profissoes := profissoes || profissao;
-    nomes := nomes || nome;
-    precos := precos || case when preco = 'null'::jsonb then null else preco::text::numeric::integer end;
-    unidades := unidades || unidade;
+    nomes := nomes || nome_item;
+    precos := precos || case when preco_item = 'null'::jsonb then null else preco_item::text::numeric::integer end;
+    unidades := unidades || unidade_item;
   end loop;
 
-  delete from public.services where professional_id = pro.id;
-  insert into public.services (professional_id, profession_id, name, price, unit, position)
-  select pro.id, s.profissao, s.nome, s.preco, s.unidade, s.ordem - 1
-  from unnest(profissoes, nomes, precos, unidades) with ordinality as s (profissao, nome, preco, unidade, ordem);
+  delete from public.servicos where prestador_id = pro.id;
+  insert into public.servicos (prestador_id, modalidade_id, nome, preco, unidade, posicao)
+  select pro.id, s.profissao, s.nome_item, s.preco_item, s.unidade_item, s.ordem - 1
+  from unnest(profissoes, nomes, precos, unidades) with ordinality as s (profissao, nome_item, preco_item, unidade_item, ordem);
   return interno.prestador_json(pro, true);
 end
 $$;
@@ -785,11 +787,11 @@ create function public.salvar_sobre(p jsonb default '{}') returns jsonb
 language plpgsql security definer set search_path = ''
 as $$
 declare
-  pro public.professionals := interno.prestador_proprio();
-  sobre text := interno.texto(interno.objeto(p), 'about', 300, 'O texto');
+  pro public.prestadores := interno.prestador_proprio();
+  novo_sobre text := interno.texto(interno.objeto(p), 'about', 300, 'O texto');
 begin
-  update public.professionals set about = sobre where id = pro.id;
-  return jsonb_build_object('about', sobre);
+  update public.prestadores set sobre = novo_sobre where id = pro.id;
+  return jsonb_build_object('about', novo_sobre);
 end
 $$;
 
@@ -797,22 +799,22 @@ create function public.publicar(p jsonb default '{}') returns jsonb
 language plpgsql security definer set search_path = ''
 as $$
 declare
-  conta public.profiles := interno.conta_atual();
-  pro public.professionals := interno.prestador_proprio();
+  conta public.contas := interno.conta_atual();
+  pro public.prestadores := interno.prestador_proprio();
   dados jsonb := interno.objeto(p);
   campos text[] := '{}';
   faltando text[] := '{}';
-  ajustes public.plan_settings;
-  plano text := dados ->> 'plan';
+  ajustes public.ajustes_plano;
+  plano_escolhido text := dados ->> 'plan';
   forma text := dados ->> 'method';
-  fim_teste date;
+  novo_fim_teste date;
 begin
   if pro.status = 'publicado' then
     perform interno.erro(409, 'Seu perfil já está publicado.');
   end if;
 
   -- Os mesmos requisitos do cartão "Publicar", conferidos aqui
-  if pro.photo is null then
+  if pro.foto is null then
     campos := campos || 'photo'::text;
     faltando := faltando || 'Adicione uma foto no Perfil.'::text;
   end if;
@@ -820,7 +822,7 @@ begin
     campos := campos || 'phone'::text;
     faltando := faltando || 'Cadastre seu WhatsApp no Perfil.'::text;
   end if;
-  if not exists (select 1 from public.services where professional_id = pro.id) then
+  if not exists (select 1 from public.servicos where prestador_id = pro.id) then
     campos := campos || 'services'::text;
     faltando := faltando || 'Cadastre pelo menos um serviço.'::text;
   end if;
@@ -829,28 +831,28 @@ begin
   end if;
 
   -- A administração usa o portal inteiro sem contratar plano: publica sem plano nem pagamento
-  if conta.is_admin then
-    update public.professionals
-    set status = 'publicado', plan = null, payment_method = null, trial_ends_at = null
+  if conta.admin then
+    update public.prestadores
+    set status = 'publicado', plano = null, forma_pagamento = null, fim_teste = null
     where id = pro.id;
     return jsonb_build_object('status', 'publicado');
   end if;
 
-  select * into ajustes from public.plan_settings where id = 1;
-  if jsonb_typeof(dados -> 'plan') is distinct from 'string' or plano not in ('mensal', 'semestral') then
+  select * into ajustes from public.ajustes_plano where id = 1;
+  if jsonb_typeof(dados -> 'plan') is distinct from 'string' or plano_escolhido not in ('mensal', 'semestral') then
     perform interno.erro_campo('plan', 'Escolha um plano.');
   end if;
   if jsonb_typeof(dados -> 'method') is distinct from 'string'
-     or not ((forma = 'pix' and ajustes.pix_enabled) or (forma = 'cartao' and ajustes.card_enabled)) then
+     or not ((forma = 'pix' and ajustes.pix_ativo) or (forma = 'cartao' and ajustes.cartao_ativo)) then
     perform interno.erro_campo('method', 'Escolha uma forma de pagamento disponível.');
   end if;
 
   -- TODO: criar a assinatura no gateway antes de publicar
-  fim_teste := interno.hoje() + ajustes.trial_days;
-  update public.professionals
-  set status = 'publicado', plan = plano, payment_method = forma, trial_ends_at = fim_teste
+  novo_fim_teste := interno.hoje() + ajustes.dias_teste;
+  update public.prestadores
+  set status = 'publicado', plano = plano_escolhido, forma_pagamento = forma, fim_teste = novo_fim_teste
   where id = pro.id;
-  return jsonb_build_object('status', 'publicado', 'plan', plano, 'trialEndsAt', fim_teste);
+  return jsonb_build_object('status', 'publicado', 'plan', plano_escolhido, 'trialEndsAt', novo_fim_teste);
 end
 $$;
 
@@ -858,15 +860,15 @@ create function public.meus_contatos(p jsonb default '{}') returns jsonb
 language plpgsql security definer set search_path = ''
 as $$
 declare
-  pro public.professionals := interno.prestador_proprio();
+  pro public.prestadores := interno.prestador_proprio();
 begin
   return coalesce((
     select jsonb_agg(jsonb_build_object(
-      'id', c.id, 'professionalId', c.professional_id, 'client', c.client, 'task', c.task,
-      'message', c.message, 'neighborhood', c.neighborhood, 'date', c.date, 'answered', c.answered
-    ) order by c.date desc, c.id)
-    from public.contacts c
-    where c.professional_id = pro.id
+      'id', c.id, 'professionalId', c.prestador_id, 'client', c.cliente, 'task', c.servico,
+      'message', c.mensagem, 'neighborhood', c.bairro, 'date', c.data, 'answered', c.respondido
+    ) order by c.data desc, c.id)
+    from public.contatos c
+    where c.prestador_id = pro.id
   ), '[]'::jsonb);
 end
 $$;
@@ -875,11 +877,11 @@ create function public.marcar_respondido(p jsonb default '{}') returns jsonb
 language plpgsql security definer set search_path = ''
 as $$
 declare
-  pro public.professionals := interno.prestador_proprio();
+  pro public.prestadores := interno.prestador_proprio();
 begin
   -- Só marca contatos do próprio prestador
-  update public.contacts set answered = true
-  where id = interno.objeto(p) ->> 'id' and professional_id = pro.id;
+  update public.contatos set respondido = true
+  where id = interno.objeto(p) ->> 'id' and prestador_id = pro.id;
   if not found then
     perform interno.erro(404, 'Contato não encontrado.');
   end if;
@@ -889,11 +891,11 @@ $$;
 
 -- ---------- catálogo ----------
 
-create function interno.modalidade_json(m public.professions) returns jsonb
+create function interno.modalidade_json(m public.modalidades) returns jsonb
 language sql stable
 as $$
-  select jsonb_build_object('id', m.id, 'name', m.name, 'tasks', to_jsonb(m.tasks))
-    || jsonb_strip_nulls(jsonb_build_object('image', m.image))
+  select jsonb_build_object('id', m.id, 'name', m.nome, 'tasks', to_jsonb(m.sugestoes))
+    || jsonb_strip_nulls(jsonb_build_object('image', m.imagem))
 $$;
 
 create function public.catalogo(p jsonb default '{}') returns jsonb
@@ -901,8 +903,8 @@ language plpgsql security definer set search_path = ''
 as $$
 begin
   return coalesce((
-    select jsonb_agg(interno.modalidade_json(m) order by m.position)
-    from public.professions m
+    select jsonb_agg(interno.modalidade_json(m) order by m.posicao)
+    from public.modalidades m
   ), '[]'::jsonb);
 end
 $$;
@@ -912,23 +914,24 @@ language plpgsql security definer set search_path = ''
 as $$
 declare
   dados jsonb := interno.objeto(p);
-  nome text;
-  servicos text[];
-  imagem text;
+  -- Prefixo "novo_" para não confundir com as colunas de mesmo nome
+  novo_nome text;
+  novas_sugestoes text[];
+  nova_imagem text;
   base text;
   novo_id text;
   n integer := 2;
-  modalidade public.professions;
+  modalidade public.modalidades;
 begin
   perform interno.exigir_admin();
-  nome := interno.colapsar(interno.texto(dados, 'name', 40, 'O nome'));
-  if nome = '' then
+  novo_nome := interno.colapsar(interno.texto(dados, 'name', 40, 'O nome'));
+  if novo_nome = '' then
     perform interno.erro_campo('name', 'Informe o nome da modalidade.');
   end if;
-  if not interno.nome_valido(nome) then
+  if not interno.nome_valido(novo_nome) then
     perform interno.erro_campo('name', 'Use só letras no nome da modalidade, sem números ou símbolos.');
   end if;
-  if exists (select 1 from public.professions where interno.normalizar(name) = interno.normalizar(nome)) then
+  if exists (select 1 from public.modalidades m where interno.normalizar(m.nome) = interno.normalizar(novo_nome)) then
     perform interno.erro_campo('name', 'Já existe uma modalidade com esse nome.', 409);
   end if;
 
@@ -936,41 +939,41 @@ begin
     perform interno.erro_campo('tasks', 'Informe pelo menos um serviço, para a modalidade aparecer na busca.');
   end if;
   select coalesce(array_agg(t.servico order by t.ordem), '{}')
-  into servicos
+  into novas_sugestoes
   from (
     select interno.colapsar(regexp_replace(value #>> '{}', '^\s+|\s+$', '', 'g')) as servico, ordem
     from jsonb_array_elements(dados -> 'tasks') with ordinality as e (value, ordem)
     where jsonb_typeof(value) = 'string'
   ) t
   where t.servico <> '';
-  if cardinality(servicos) = 0 then
+  if cardinality(novas_sugestoes) = 0 then
     perform interno.erro_campo('tasks', 'Informe pelo menos um serviço, para a modalidade aparecer na busca.');
   end if;
-  if cardinality(servicos) > 30 then
+  if cardinality(novas_sugestoes) > 30 then
     perform interno.erro_campo('tasks', 'Informe até 30 serviços.');
   end if;
-  if exists (select 1 from unnest(servicos) s where char_length(s) > 60) then
+  if exists (select 1 from unnest(novas_sugestoes) s where char_length(s) > 60) then
     perform interno.erro_campo('tasks', 'Cada serviço pode ter até 60 caracteres.');
   end if;
 
   -- A imagem já foi enviada ao Storage, em modalidades/
-  imagem := nullif(interno.texto(dados, 'image', 200, 'A imagem'), '');
-  if imagem is not null and (
-    (storage.foldername(imagem))[1] is distinct from 'modalidades'
-    or not exists (select 1 from storage.objects o where o.bucket_id = 'fotos' and o.name = imagem)
+  nova_imagem := nullif(interno.texto(dados, 'image', 200, 'A imagem'), '');
+  if nova_imagem is not null and (
+    (storage.foldername(nova_imagem))[1] is distinct from 'modalidades'
+    or not exists (select 1 from storage.objects o where o.bucket_id = 'fotos' and o.name = nova_imagem)
   ) then
     perform interno.erro_campo('image', 'Escolha um arquivo de imagem, como JPG ou PNG.');
   end if;
 
-  base := coalesce(nullif(trim(both '-' from regexp_replace(interno.normalizar(nome), '[^a-z0-9]+', '-', 'g')), ''), 'modalidade');
+  base := coalesce(nullif(trim(both '-' from regexp_replace(interno.normalizar(novo_nome), '[^a-z0-9]+', '-', 'g')), ''), 'modalidade');
   novo_id := base;
-  while exists (select 1 from public.professions where id = novo_id) loop
+  while exists (select 1 from public.modalidades where id = novo_id) loop
     novo_id := base || '-' || n;
     n := n + 1;
   end loop;
 
-  insert into public.professions (id, name, tasks, image, position)
-  values (novo_id, nome, servicos, imagem, (select coalesce(max(position), -1) + 1 from public.professions))
+  insert into public.modalidades (id, nome, sugestoes, imagem, posicao)
+  values (novo_id, novo_nome, novas_sugestoes, nova_imagem, (select coalesce(max(posicao), -1) + 1 from public.modalidades))
   returning * into modalidade;
   return interno.modalidade_json(modalidade);
 end
@@ -982,7 +985,7 @@ language plpgsql security definer set search_path = ''
 as $$
 begin
   perform interno.exigir_admin();
-  delete from public.professions where id = interno.objeto(p) ->> 'id';
+  delete from public.modalidades where id = interno.objeto(p) ->> 'id';
   if not found then
     perform interno.erro(404, 'Modalidade não encontrada.');
   end if;
@@ -1045,9 +1048,9 @@ begin
     perform interno.erro_campo('methods', 'Deixe pelo menos uma forma de pagamento ligada.');
   end if;
 
-  update public.plan_settings
-  set monthly_price = mensal, semiannual_price = semestral, trial_days = dias::integer,
-      gateway = dados ->> 'gateway', pix_enabled = pix, card_enabled = cartao
+  update public.ajustes_plano
+  set preco_mensal = mensal, preco_semestral = semestral, dias_teste = dias::integer,
+      gateway = dados ->> 'gateway', pix_ativo = pix, cartao_ativo = cartao
   where id = 1;
   return interno.plano_json();
 end
@@ -1059,7 +1062,7 @@ create function public.estatisticas(p jsonb default '{}') returns jsonb
 language plpgsql security definer set search_path = ''
 as $$
 declare
-  ajustes public.plan_settings;
+  ajustes public.ajustes_plano;
   total_contas integer;
   total_prestadores integer;
   total_publicados integer;
@@ -1068,25 +1071,25 @@ declare
   receita float8;
 begin
   perform interno.exigir_admin();
-  select * into ajustes from public.plan_settings where id = 1;
+  select * into ajustes from public.ajustes_plano where id = 1;
 
-  select count(*) into total_contas from public.profiles where not is_admin;
-  select count(*) into total_prestadores from public.professionals;
+  select count(*) into total_contas from public.contas where not admin;
+  select count(*) into total_prestadores from public.prestadores;
 
   -- Perfil da administração é publicado sem plano: não está em teste, não paga nem entra na receita
   with cobrados as (
-    select pro.plan, pro.trial_ends_at > interno.hoje() as em_teste
-    from public.professionals pro
-    left join public.profiles a on a.id = pro.account_id
-    where pro.status = 'publicado' and not coalesce(a.is_admin, false)
+    select pro.plano, pro.fim_teste > interno.hoje() as em_teste
+    from public.prestadores pro
+    left join public.contas a on a.id = pro.conta_id
+    where pro.status = 'publicado' and not coalesce(a.admin, false)
   )
   select
-    (select count(*) from public.professionals where status = 'publicado'),
+    (select count(*) from public.prestadores where status = 'publicado'),
     count(*) filter (where em_teste),
     count(*) filter (where not coalesce(em_teste, false)),
     -- Receita mensal recorrente: planos semestrais entram pelo valor equivalente por mês
-    coalesce(sum(case when plan = 'semestral' then ajustes.semiannual_price::float8 / 6
-                      else ajustes.monthly_price::float8 end)
+    coalesce(sum(case when plano = 'semestral' then ajustes.preco_semestral::float8 / 6
+                      else ajustes.preco_mensal::float8 end)
              filter (where not coalesce(em_teste, false)), 0)
   into total_publicados, total_em_teste, total_pagantes, receita
   from cobrados;
@@ -1095,30 +1098,30 @@ begin
     'stats', jsonb_build_object(
       'accounts', total_contas,
       -- Prestadores de exemplo não têm conta de login; contam como cadastrados
-      'people', total_contas + (select count(*) from public.professionals where account_id is null),
+      'people', total_contas + (select count(*) from public.prestadores where conta_id is null),
       'consumersOnly', (
-        select count(*) from public.profiles a
-        where not a.is_admin and not exists (select 1 from public.professionals pro where pro.account_id = a.id)
+        select count(*) from public.contas a
+        where not a.admin and not exists (select 1 from public.prestadores pro where pro.conta_id = a.id)
       ),
       'providers', total_prestadores,
       'published', total_publicados,
       'drafts', total_prestadores - total_publicados,
       'inTrial', total_em_teste,
       'paying', total_pagantes,
-      'services', (select count(*) from public.services),
-      'modalities', (select count(*) from public.professions),
-      'contacts', (select count(*) from public.contacts),
-      'reviews', (select count(*) from public.reviews),
+      'services', (select count(*) from public.servicos),
+      'modalities', (select count(*) from public.modalidades),
+      'contacts', (select count(*) from public.contatos),
+      'reviews', (select count(*) from public.avaliacoes),
       'monthlyRevenue', receita
     ),
     'ranking', coalesce((
       select jsonb_agg(jsonb_build_object(
-        'professionId', r.id, 'name', r.name, 'services', r.servicos, 'providers', r.prestadores
-      ) order by r.servicos desc, r.position)
+        'professionId', r.id, 'name', r.nome, 'services', r.total_servicos, 'providers', r.total_prestadores
+      ) order by r.total_servicos desc, r.posicao)
       from (
-        select m.id, m.name, m.position, count(s.id) as servicos, count(distinct s.professional_id) as prestadores
-        from public.professions m
-        left join public.services s on s.profession_id = m.id
+        select m.id, m.nome, m.posicao, count(s.id) as total_servicos, count(distinct s.prestador_id) as total_prestadores
+        from public.modalidades m
+        left join public.servicos s on s.modalidade_id = m.id
         group by m.id
       ) r
     ), '[]'::jsonb)
