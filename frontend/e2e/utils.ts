@@ -46,6 +46,8 @@ async function waitLeaveAuth(page: Page) {
 
 export async function login(page: Page, email: string, password = 'teste123', { expectSuccess = true } = {}) {
   await page.goto('/#/entrar')
+  // Vindo do cadastro, a troca de tela é animada e o formulário antigo ainda aparece por um instante
+  await expect(page.getByRole('heading', { name: 'Entre na sua conta' })).toBeVisible()
   await page.getByLabel('E-mail').fill(email)
   await page.getByLabel(/^Senha/).fill(password)
   await page.getByRole('button', { name: 'Entrar', exact: true }).click()

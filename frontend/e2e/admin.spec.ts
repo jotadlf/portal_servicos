@@ -38,6 +38,7 @@ test.describe('Administração real', () => {
 
     await page.goto('/#/')
     await page.getByRole('button', { name }).click()
+    await page.getByRole('button', { name: 'Exibir' }).click()
     await expect(page.getByRole('button', { name: /Trocar vidro de janela/ })).toBeVisible()
 
     await page.goto('/#/admin')
