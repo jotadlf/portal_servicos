@@ -1,5 +1,6 @@
 // Contas: login no Supabase Auth, dados no perfil (public.profiles). O CPF fica só no banco.
 import { ApiError, imageUrl, removeImage, rpc, uploadImage } from '../../lib/api'
+import { PHOTO } from '../../lib/imagem'
 import { getSupabaseClient } from '../../lib/supabase'
 
 export type Address = {
@@ -123,7 +124,7 @@ export async function updateAccount(changes: Pick<Account, 'name' | 'phone' | 'a
 // A foto vai para a pasta da conta no Storage; depois o banco passa a usá-la e a antiga sai
 export async function uploadPhoto(file: File) {
   const before = await rpc<AccountData>('minha_conta')
-  const path = await uploadImage(before.id, file, 'photo')
+  const path = await uploadImage(before.id, file, 'photo', PHOTO)
   const updated = await rpc<AccountData>('definir_foto', { path })
   await removeImage(before.photo)
   return toAccount(updated)

@@ -13,6 +13,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { imageUrl, rpc, uploadImage } from '../../lib/api'
+import { ICON } from '../../lib/imagem'
 import eletricistaImg from '../../assets/profissoes/eletricista.png'
 import faxineiraImg from '../../assets/profissoes/faxineira.png'
 import diaristaImg from '../../assets/profissoes/diarista.svg'
@@ -72,7 +73,7 @@ export function findProfession(professions: Profession[], id: string) {
 
 // Só a administração consegue; o banco confere (e o Storage só aceita a imagem dela)
 export async function addProfession({ name, tasks, image }: { name: string; tasks: string[]; image?: File }) {
-  const path = image ? await uploadImage('modalidades', image, 'image') : undefined
+  const path = image ? await uploadImage('modalidades', image, 'image', ICON) : undefined
   const data = await rpc<ProfessionData>('adicionar_modalidade', { name, tasks, image: path })
   return withVisual(data)
 }

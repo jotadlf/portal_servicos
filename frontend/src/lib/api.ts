@@ -1,5 +1,6 @@
 // Chamadas ao Supabase. Os dados passam só pelas funções RPC do banco
 // (supabase/migrations), que conferem sessão, permissão e dados como a API antiga.
+import { compressImage, type Compression } from './imagem'
 import { getSupabaseClient, SESSION_EXPIRED, SESSION_KEY } from './supabase'
 
 export { SESSION_EXPIRED }
@@ -101,18 +102,27 @@ function readBytes(file: File) {
 
 // Envia a imagem para o Storage na pasta indicada e devolve o caminho dela.
 // Confere o conteúdo, não só o tipo declarado: um PDF renomeado para .png é recusado.
-export async function uploadImage(folder: string, file: File, field: string) {
+// Antes de enviar, reduz o tamanho e converte para WebP (imagem.ts).
+export async function uploadImage(folder: string, file: File, field: string, compression: Compression) {
   if (file.size > MAX_PHOTO_BYTES) throw new ApiError(400, 'A foto precisa ter até 5 MB.', { [field]: 'A foto precisa ter até 5 MB.' })
   const format = signatures[file.type]
   // Vai como bytes, não como File: funciona igual no navegador e nos testes (jsdom)
-  const bytes = await readBytes(file)
+  let bytes = await readBytes(file)
   if (!format || !format.matches(bytes)) {
     throw new ApiError(400, NOT_AN_IMAGE, { [field]: NOT_AN_IMAGE })
   }
-  const path = `${folder}/${crypto.randomUUID()}.${format.ext}`
+  let type = file.type
+  try {
+    const compressed = await compressImage(file, compression)
+    if (compressed) ({ bytes, type } = compressed)
+  } catch {
+    // O navegador não conseguiu abrir: arquivo corrompido
+    throw new ApiError(400, NOT_AN_IMAGE, { [field]: NOT_AN_IMAGE })
+  }
+  const path = `${folder}/${crypto.randomUUID()}.${signatures[type].ext}`
   let result
   try {
-    result = await getSupabaseClient().storage.from(BUCKET).upload(path, bytes, { contentType: file.type })
+    result = await getSupabaseClient().storage.from(BUCKET).upload(path, bytes, { contentType: type })
   } catch {
     throw new ApiError(0, OFFLINE)
   }
