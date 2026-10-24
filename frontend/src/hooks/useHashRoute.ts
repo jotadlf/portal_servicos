@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { withTransition } from '../lib/transition'
 
 export type Route =
   | { name: 'inicio' }
@@ -34,8 +35,10 @@ export function useHashRoute() {
 
   useEffect(() => {
     function handleChange() {
-      setRoute(parse(window.location.hash))
-      window.scrollTo(0, 0)
+      withTransition(() => {
+        setRoute(parse(window.location.hash))
+        window.scrollTo(0, 0)
+      })
     }
     window.addEventListener('hashchange', handleChange)
     return () => window.removeEventListener('hashchange', handleChange)

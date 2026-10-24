@@ -72,6 +72,8 @@ CREATE TABLE IF NOT EXISTS services (
   name TEXT NOT NULL,
   -- Reais inteiros; NULL = a combinar
   price INTEGER CHECK (price IS NULL OR price >= 0),
+  -- Como o preço é cobrado
+  unit TEXT NOT NULL DEFAULT 'servico' CHECK (unit IN ('diaria', 'm2', 'empreita', 'servico', 'hora')),
   position INTEGER NOT NULL
 );
 

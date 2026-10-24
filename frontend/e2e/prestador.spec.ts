@@ -56,6 +56,7 @@ test('perfil público de exemplo cabe na tela e esconde preço sem login', async
 test('início: busca e lista cabem na tela', async ({ page }) => {
   await page.goto('/#/')
   await page.getByRole('button', { name: 'Eletricista' }).click()
+  await page.getByRole('button', { name: 'Exibir' }).click()
   await expect(page.getByRole('button', { name: /Instalar chuveiro/ })).toBeVisible()
   await expectNoHorizontalScroll(page)
 })

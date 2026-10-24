@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { Check, Pencil, Plus, Star, Trash2, X } from 'lucide-react'
 import { BottomMenu } from '../components/BottomMenu'
 import { LoginBar } from '../components/LoginBar'
@@ -13,10 +13,13 @@ import {
   fetchOwnProfessional,
   fetchReviews,
   markContactAnswered,
+  perUnit,
+  priceUnits,
   saveAbout,
   saveServices,
   type ContactRequest,
   type OfferedService,
+  type PriceUnit,
   type Professional,
   type Review,
 } from '../features/profissionais/prestadores'
@@ -59,7 +62,7 @@ export function Servicos({ account, onLogin, onAccountChange }: ServicosProps) {
     <div className="app">
       <main className="page">
         {account?.professionalId ? (
-          <PainelLoader />
+          <PainelLoader isAdmin={account.isAdmin ?? false} />
         ) : (
           <div className="page-section">
             <h1 className="page-title">Ofereça seus serviços</h1>
@@ -67,7 +70,12 @@ export function Servicos({ account, onLogin, onAccountChange }: ServicosProps) {
               Cadastre os serviços que você faz, informe o preço médio e receba contatos de
               clientes da sua região.
             </p>
-            <PlanOffer />
+            {/* A administração usa o portal inteiro sem contratar plano */}
+            {account?.isAdmin ? (
+              <p className="notice">Como administrador, você usa tudo sem plano e sem pagamento.</p>
+            ) : (
+              <PlanOffer />
+            )}
             {account ? (
               <>
                 <div aria-live="polite">{error && <p className="form-error">{error}</p>}</div>
@@ -96,7 +104,7 @@ type PainelData = {
 }
 
 // Carrega tudo de que o painel precisa de uma vez
-function PainelLoader() {
+function PainelLoader({ isAdmin }: { isAdmin: boolean }) {
   const data = useApi(async (): Promise<PainelData> => {
     const [pro, professions, settings, contacts] = await Promise.all([
       fetchOwnProfessional(),
@@ -111,11 +119,11 @@ function PainelLoader() {
 
   if (data.loading && !data.data) return <Loading />
   if (!data.data) return <LoadError message={data.error ?? ''} onRetry={data.reload} />
-  return <Painel {...data.data} />
+  return <Painel {...data.data} isAdmin={isAdmin} />
 }
 
-function Painel(props: PainelData) {
-  const { professions, settings, reviews } = props
+function Painel(props: PainelData & { isAdmin: boolean }) {
+  const { professions, settings, reviews, isAdmin } = props
   const [tab, setTab] = useState<TabId>('servicos')
   // O cartão de publicação acompanha a lista de serviços gravada
   const [pro, setPro] = useState(props.pro)
@@ -128,10 +136,11 @@ function Painel(props: PainelData) {
       <h1 className="page-title">Serviços</h1>
 
       {pro.status === 'rascunho' ? (
-        <PublishCard pro={pro} />
+        <PublishCard pro={pro} isAdmin={isAdmin} />
       ) : (
         <p className="notice">
-          Perfil publicado. <PublishedPlan pro={pro} settings={settings} />
+          Perfil publicado.{' '}
+          {isAdmin ? 'Sem plano: perfil da administração.' : <PublishedPlan pro={pro} settings={settings} />}
         </p>
       )}
 
@@ -174,7 +183,7 @@ function Painel(props: PainelData) {
 
 // O que falta para publicar: sem foto, WhatsApp ou serviços o perfil não passaria confiança
 // nem teria utilidade. O servidor confere o mesmo ao publicar.
-function PublishCard({ pro }: { pro: Professional }) {
+function PublishCard({ pro, isAdmin }: { pro: Professional; isAdmin: boolean }) {
   const steps = [
     { done: Boolean(pro.photo), label: 'Foto no Perfil', href: routes.conta },
     { done: Boolean(pro.whatsapp), label: 'WhatsApp cadastrado no Perfil', href: routes.conta },
@@ -186,7 +195,7 @@ function PublishCard({ pro }: { pro: Professional }) {
     <section className="publish-card" aria-labelledby="publicar-titulo">
       <h2 id="publicar-titulo">Seu perfil ainda não aparece nas buscas</h2>
       <p>Publique para receber contatos de clientes.</p>
-      <PlanOffer compact />
+      {!isAdmin && <PlanOffer compact />}
       <ul className="publish-steps">
         {steps.map(({ done, label, href }) => (
           <li key={label} className={done ? 'is-done' : undefined}>
@@ -293,6 +302,43 @@ function ServicosForm({ pro, professions, onSaved }: ServicosFormProps) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
+  // Serviço novo: abre numa folha translúcida, como a lista de profissionais do início
+  const adding = editing === 'novo'
+  const addDialogRef = useRef<HTMLDialogElement>(null)
+  const unmountTimer = useRef<number>(undefined)
+  // Formulário limpo a cada abertura
+  const [addKey, setAddKey] = useState(0)
+
+  useEffect(() => {
+    const dialog = addDialogRef.current
+    if (!adding || !dialog || dialog.open) return
+    dialog.showModal()
+    // O <dialog> focaria a profissão; o que se digita primeiro é o nome do serviço
+    dialog.querySelector('input')?.focus()
+  }, [adding])
+
+  function openAdd() {
+    window.clearTimeout(unmountTimer.current)
+    setAddKey((key) => key + 1)
+    setEditing('novo')
+    setRemoved(null)
+    setError('')
+  }
+
+  function closeAdd() {
+    addDialogRef.current?.close()
+  }
+
+  // Fechou (X, Cancelar, Esc ou salvou): o conteúdo só sai depois da animação de saída,
+  // para a folha não descer vazia
+  function handleAddClosed() {
+    const dialog = addDialogRef.current
+    const duration = dialog ? parseFloat(getComputedStyle(dialog).transitionDuration) || 0 : 0
+    const done = () => setEditing((current) => (current === 'novo' ? null : current))
+    if (duration > 0) unmountTimer.current = window.setTimeout(done, duration * 1000)
+    else done()
+  }
+
   // Profissão já marcada num serviço novo: a do último serviço cadastrado
   const lastProfessionId = services.at(-1)?.professionId ?? professions[0]?.id ?? ''
 
@@ -325,7 +371,9 @@ function ServicosForm({ pro, professions, onSaved }: ServicosFormProps) {
     const next = service.id
       ? services.map((item) => (item.id === service.id ? service : item))
       : [...services, { ...service, id: `s${Date.now()}` }]
-    if (await commit(next)) setEditing(null)
+    if (!(await commit(next))) return
+    if (service.id) setEditing(null)
+    else closeAdd()
   }
 
   async function remove(service: Service) {
@@ -354,7 +402,7 @@ function ServicosForm({ pro, professions, onSaved }: ServicosFormProps) {
 
   return (
     <section className="page-section" aria-label="Meus serviços" aria-busy={busy}>
-      {services.length === 0 && editing !== 'novo' && (
+      {services.length === 0 && !adding && (
         <p className="section-note">
           Você ainda não oferece nenhum serviço. Adicione o primeiro para aparecer nas buscas.
         </p>
@@ -388,7 +436,9 @@ function ServicosForm({ pro, professions, onSaved }: ServicosFormProps) {
                   <span className="service-name">
                     {service.name}
                     <small>
-                      {service.price == null ? 'a combinar' : `média ${formatPrice(service.price)}`}
+                      {service.price == null
+                        ? 'a combinar'
+                        : `média ${formatPrice(service.price)} ${perUnit(service.unit)}`}
                     </small>
                   </span>
                   <span className="line-actions">
@@ -419,7 +469,8 @@ function ServicosForm({ pro, professions, onSaved }: ServicosFormProps) {
       ))}
 
       <div aria-live="polite">
-        {error && <p className="form-error">{error}</p>}
+        {/* Com a folha aberta, o erro aparece dentro dela */}
+        {error && !adding && <p className="form-error">{error}</p>}
         {removed && (
           <p className="undo">
             {removed.service.name} apagado.{' '}
@@ -430,28 +481,47 @@ function ServicosForm({ pro, professions, onSaved }: ServicosFormProps) {
         )}
       </div>
 
-      {editing === 'novo' ? (
-        <ServiceEditor
-          service={{ id: '', professionId: lastProfessionId, name: '', price: null }}
-          professions={professions}
-          busy={busy}
-          isDuplicate={isDuplicate}
-          onSave={save}
-          onCancel={() => setEditing(null)}
-        />
-      ) : (
-        <button
-          type="button"
-          className="add-button"
-          onClick={() => {
-            setEditing('novo')
-            setRemoved(null)
-          }}
-        >
-          <Plus size={18} aria-hidden="true" />
-          Adicionar serviço
-        </button>
-      )}
+      <button type="button" className="add-button" onClick={openAdd}>
+        <Plus size={18} aria-hidden="true" />
+        Adicionar serviço
+      </button>
+
+      <dialog
+        ref={addDialogRef}
+        className="sheet form-sheet"
+        aria-labelledby="novo-servico-titulo"
+        onClose={handleAddClosed}
+        onClick={(event) => {
+          // Fecha ao tocar fora da folha
+          if (event.target === event.currentTarget) closeAdd()
+        }}
+      >
+        {adding && (
+          <div className="sheet-body">
+            <div className="sheet-head">
+              <div>
+                <p className="sheet-profession">Meus serviços</p>
+                <h2 id="novo-servico-titulo">Novo serviço</h2>
+              </div>
+              <button type="button" className="icon-button" aria-label="Fechar" onClick={closeAdd}>
+                <X size={20} aria-hidden="true" />
+              </button>
+            </div>
+
+            <ServiceEditor
+              key={addKey}
+              service={{ id: '', professionId: lastProfessionId, name: '', price: null, unit: 'servico' }}
+              professions={professions}
+              busy={busy}
+              isDuplicate={isDuplicate}
+              onSave={save}
+              onCancel={closeAdd}
+            />
+
+            <div aria-live="polite">{error && <p className="form-error">{error}</p>}</div>
+          </div>
+        )}
+      </dialog>
     </section>
   )
 }
@@ -469,7 +539,10 @@ function ServiceEditor({ service, professions, busy, isDuplicate, onSave, onCanc
   const [professionId, setProfessionId] = useState(service.professionId)
   const [name, setName] = useState(service.name)
   const [price, setPrice] = useState(service.price == null ? '' : String(service.price))
+  const [unit, setUnit] = useState<PriceUnit>(service.unit)
   const [error, setError] = useState('')
+  // Nome único dos botões de rádio: a lista e a folha podem ter editores ao mesmo tempo
+  const unitName = useId()
 
   const suggestions = findProfession(professions, professionId)?.tasks ?? []
 
@@ -486,7 +559,7 @@ function ServiceEditor({ service, professions, busy, isDuplicate, onSave, onCanc
       return
     }
 
-    onSave({ id: service.id, professionId, name: trimmed, price: price ? Number(price) : null })
+    onSave({ id: service.id, professionId, name: trimmed, price: price ? Number(price) : null, unit })
   }
 
   return (
@@ -541,6 +614,27 @@ function ServiceEditor({ service, professions, busy, isDuplicate, onSave, onCanc
           />
         </span>
       </label>
+
+      <fieldset className="unit-choice">
+        <legend>Cobrado por</legend>
+        <div className="unit-options">
+          {priceUnits.map(({ id, label, per }) => (
+            // O rádio invisível cobre o chip e recebe o toque. O nome dele é "Por serviço":
+            // só "Serviço" se confundiria com o campo do nome do serviço
+            <span key={id} className="unit-option">
+              <input
+                type="radio"
+                aria-label={per.charAt(0).toUpperCase() + per.slice(1)}
+                name={unitName}
+                value={id}
+                checked={unit === id}
+                onChange={() => setUnit(id)}
+              />
+              <span aria-hidden="true">{label}</span>
+            </span>
+          ))}
+        </div>
+      </fieldset>
 
       {error && <p className="form-error">{error}</p>}
 

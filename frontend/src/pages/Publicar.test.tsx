@@ -40,6 +40,24 @@ describe('Publicar', () => {
     expect(screen.getByText('Economize 16%')).toBeInTheDocument()
   })
 
+  it('administração publica direto, sem plano nem pagamento', async () => {
+    const account = await readyProvider()
+    apiServer().db.prepare('UPDATE accounts SET is_admin = 1 WHERE id = ?').run(account.id)
+    renderPublicar({ ...account, isAdmin: true })
+
+    await screen.findByText(/Como administrador, você publica sem plano e sem pagamento/)
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+    expect(screen.queryByText(/dias grátis|R$/)).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Publicar perfil' }))
+    await waitFor(() => expect(window.location.hash).toBe('#/servicos'))
+    expect(dbRow('SELECT status, plan, payment_method FROM professionals WHERE account_id = ?', account.id)).toEqual({
+      status: 'publicado',
+      plan: null,
+      payment_method: null,
+    })
+  })
+
   it('publica e grava plano, forma de pagamento e fim do período grátis', async () => {
     const account = await readyProvider()
     renderPublicar(account)

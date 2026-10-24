@@ -9,7 +9,25 @@ export type OfferedService = {
   professionId: string
   name: string
   price: number | null
+  // Como o preço é cobrado (vem mesmo com o preço escondido)
+  unit: PriceUnit
   hidden?: boolean
+}
+
+export type PriceUnit = 'diaria' | 'm2' | 'empreita' | 'servico' | 'hora'
+
+// Na ordem das opções do cadastro
+export const priceUnits: { id: PriceUnit; label: string; per: string }[] = [
+  { id: 'diaria', label: 'Diária', per: 'por diária' },
+  { id: 'm2', label: 'M²', per: 'por m²' },
+  { id: 'empreita', label: 'Empreita', per: 'por empreita' },
+  { id: 'servico', label: 'Serviço', per: 'por serviço' },
+  { id: 'hora', label: 'Hora', per: 'por hora' },
+]
+
+// "por m²", "por hora"…
+export function perUnit(unit: PriceUnit) {
+  return priceUnits.find(({ id }) => id === unit)?.per ?? 'por serviço'
 }
 
 export type Professional = {
@@ -81,7 +99,7 @@ export function fetchOwnProfessional() {
 
 export function saveServices(services: OfferedService[]) {
   return api<Professional>('PUT', '/api/prestador/servicos', {
-    services: services.map(({ professionId, name, price }) => ({ professionId, name, price })),
+    services: services.map(({ professionId, name, price, unit }) => ({ professionId, name, price, unit })),
   })
 }
 
@@ -89,8 +107,9 @@ export function saveAbout(about: string) {
   return api<{ about: string }>('PATCH', '/api/prestador/sobre', { about })
 }
 
-export function publishProfile(plan: PlanId, method: 'pix' | 'cartao') {
-  return api<{ status: 'publicado'; plan: PlanId; trialEndsAt: string }>('POST', '/api/prestador/publicar', {
+// Sem plano nem pagamento: só a administração (o servidor recusa para os demais)
+export function publishProfile(plan?: PlanId, method?: 'pix' | 'cartao') {
+  return api<{ status: 'publicado'; plan?: PlanId; trialEndsAt?: string }>('POST', '/api/prestador/publicar', {
     plan,
     method,
   })

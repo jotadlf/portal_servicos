@@ -31,6 +31,7 @@ export async function openDb(path: string) {
   db.exec('PRAGMA foreign_keys = ON')
   db.exec('PRAGMA journal_mode = WAL')
   db.exec(schema)
+  migrate(db)
 
   const { total } = db.prepare('SELECT count(*) AS total FROM accounts').get() as { total: number }
   if (total === 0) {
@@ -41,6 +42,18 @@ export async function openDb(path: string) {
 }
 
 export type Db = DatabaseSync
+
+// Bancos criados antes de uma coluna nova: o "CREATE TABLE IF NOT EXISTS" do schema não
+// mexe em tabela que já existe, então a coluna entra aqui, sem apagar os dados.
+function migrate(db: Db) {
+  const columns = db.prepare('PRAGMA table_info(services)').all() as { name: string }[]
+  if (!columns.some(({ name }) => name === 'unit')) {
+    db.exec(
+      `ALTER TABLE services ADD COLUMN unit TEXT NOT NULL DEFAULT 'servico'
+       CHECK (unit IN ('diaria', 'm2', 'empreita', 'servico', 'hora'))`,
+    )
+  }
+}
 
 // Executa várias gravações de uma vez: ou todas entram, ou nenhuma
 export function transaction<T>(db: Db, work: () => T): T {

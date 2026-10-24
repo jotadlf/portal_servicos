@@ -55,13 +55,13 @@ export function Publicar({ account, onLogin }: PublicarProps) {
           </div>
         )}
 
-        {account?.professionalId && <CheckoutLoader />}
+        {account?.professionalId && <CheckoutLoader isAdmin={account.isAdmin ?? false} />}
       </main>
     </div>
   )
 }
 
-function CheckoutLoader() {
+function CheckoutLoader({ isAdmin }: { isAdmin: boolean }) {
   const data = useApi(() => Promise.all([fetchOwnProfessional(), fetchPlanSettings()]))
   if (data.loading && !data.data) return <Loading />
   if (!data.data) return <LoadError message={data.error ?? ''} onRetry={data.reload} />
@@ -77,7 +77,42 @@ function CheckoutLoader() {
       </div>
     )
   }
-  return <Checkout settings={settings} />
+  return isAdmin ? <AdminPublish /> : <Checkout settings={settings} />
+}
+
+// A administração usa o portal inteiro sem contratar plano: publica direto, sem plano nem pagamento
+function AdminPublish() {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  async function publish() {
+    setBusy(true)
+    setError('')
+    try {
+      await publishProfile()
+      window.location.assign(routes.servicos)
+    } catch (failure) {
+      const missing = failure instanceof ApiError ? Object.values(failure.fields) : []
+      setError([errorMessage(failure), ...missing].join(' '))
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="page-section" aria-labelledby="publicar-admin-titulo">
+      <h1 id="publicar-admin-titulo" className="page-title">
+        Publique seu perfil
+      </h1>
+      <p className="section-note">
+        Como administrador, você publica sem plano e sem pagamento. O perfil passa a aparecer nas
+        buscas.
+      </p>
+      <div aria-live="polite">{error && <p className="form-error">{error}</p>}</div>
+      <button type="button" className="primary" disabled={busy} onClick={publish}>
+        {busy ? 'Publicando…' : 'Publicar perfil'}
+      </button>
+    </section>
+  )
 }
 
 function Checkout({ settings }: { settings: PlanSettings }) {

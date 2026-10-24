@@ -42,6 +42,15 @@ describe('Servicos: quem ainda não oferece', () => {
     expect(updated.professionalId).toBeDefined()
     expect(dbRow('SELECT status FROM professionals WHERE account_id = ?', account.id)?.status).toBe('rascunho')
   })
+
+  it('administração não vê oferta de plano nem preço', async () => {
+    renderServicos({ ...(await newAccount()), isAdmin: true })
+    expect(screen.getByText(/Como administrador, você usa tudo sem plano/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Quero oferecer serviços' })).toBeInTheDocument()
+    // Dá tempo de a oferta carregar, se fosse aparecer
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(screen.queryByText(/dias grátis|por mês/)).not.toBeInTheDocument()
+  })
 })
 
 describe('Servicos: meus serviços gravados no banco', () => {
@@ -69,6 +78,41 @@ describe('Servicos: meus serviços gravados no banco', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Desfazer' }))
     expect(await screen.findByRole('button', { name: 'Editar Instalar ventilador' })).toBeInTheDocument()
     expect(servicesOf(account.professionalId!)).toHaveLength(1)
+  })
+
+  it('escolhe como o preço é cobrado (padrão: por serviço)', async () => {
+    const account = await newAccount({ asProvider: true })
+    renderServicos(account)
+    await painel()
+    await userEvent.click(screen.getByRole('button', { name: 'Adicionar serviço' }))
+
+    const folha = within(screen.getByRole('dialog', { name: 'Novo serviço' }))
+    expect(folha.getByRole('radio', { name: 'Por serviço' })).toBeChecked()
+    await userEvent.type(folha.getByLabelText('Serviço'), 'Pintar parede')
+    await userEvent.type(folha.getByLabelText(/^Preço médio/), '25')
+    await userEvent.click(folha.getByRole('radio', { name: 'Por m²' }))
+    await userEvent.click(folha.getByRole('button', { name: 'Salvar' }))
+
+    expect(await screen.findByText(/média R\$\s25 por m²/)).toBeInTheDocument()
+    expect(dbRow('SELECT unit FROM services WHERE professional_id = ?', account.professionalId!)?.unit).toBe('m2')
+  })
+
+  it('adicionar abre a folha "Novo serviço"; o X fecha e reabre limpa', async () => {
+    renderServicos(await newAccount({ asProvider: true }))
+    await painel()
+    await userEvent.click(screen.getByRole('button', { name: 'Adicionar serviço' }))
+
+    const folha = screen.getByRole('dialog', { name: 'Novo serviço' })
+    expect(folha).toHaveAttribute('open')
+    expect(within(folha).getByLabelText('Serviço')).toHaveFocus()
+    await userEvent.type(within(folha).getByLabelText('Serviço'), 'Rascunho')
+
+    await userEvent.click(within(folha).getByRole('button', { name: 'Fechar' }))
+    expect(folha).not.toHaveAttribute('open')
+    expect(screen.queryByLabelText('Serviço')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Adicionar serviço' }))
+    expect(screen.getByLabelText('Serviço')).toHaveValue('')
   })
 
   it('recusa serviço sem nome ou repetido na mesma profissão', async () => {

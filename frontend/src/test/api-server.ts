@@ -66,7 +66,7 @@ export async function readyProvider() {
     phone: '62999998888',
     address: { cep: '', street: '', number: '', complement: '', neighborhood: 'Setor Oeste', city: '', state: '' },
   })
-  await saveServices([{ professionId: 'eletricista', name: 'Instalar ventilador', price: 120 }])
+  await saveServices([{ professionId: 'eletricista', name: 'Instalar ventilador', price: 120, unit: 'servico' }])
   const { currentAccount } = await import('../features/conta/usuario')
   return (await currentAccount())!
 }

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ChevronRight, MapPin, Search, X } from 'lucide-react'
 import logo from '../assets/zumzum-icone.svg'
 import { Avatar } from '../components/Avatar'
@@ -9,6 +9,7 @@ import { LoadError, Loading } from '../components/Status'
 import { WhatsappIcon } from '../components/WhatsappIcon'
 import {
   fetchProfessionalsFor,
+  perUnit,
   serviceFor,
   type OfferedService,
   type Professional,
@@ -17,6 +18,7 @@ import { fetchCatalog, getAllTasks, type Task } from '../features/servicos/catal
 import { useApi } from '../hooks/useApi'
 import { routes } from '../hooks/useHashRoute'
 import { firstName, formatPrice, greeting, normalize } from '../lib/format'
+import { withTransition } from '../lib/transition'
 import { contactMessage, formatPhone, openWhatsapp } from '../lib/whatsapp'
 
 type InicioProps = {
@@ -35,8 +37,40 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
   const [noWhatsapp, setNoWhatsapp] = useState(false)
   // Busca por nome e ordem da lista de profissionais do serviço aberto
   const [proQuery, setProQuery] = useState('')
-  const [proSort, setProSort] = useState<ProSort>('reputacao')
+  const [proSort, setProSort] = useState<ProSort>('avaliacao')
+  // Tela com a lista de serviços das profissões escolhidas, aberta pelo botão "Exibir"
+  const [listOpen, setListOpen] = useState(false)
+  // Modo busca: o campo vem à frente e os resultados aparecem num card translúcido
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [headerHeight, setHeaderHeight] = useState(0)
 
+  // O voltar do celular fecha a lista em vez de sair do início
+  useEffect(() => {
+    if (!listOpen) return
+    const close = () => withTransition(() => setListOpen(false), 'voltar')
+    window.addEventListener('popstate', close)
+    return () => window.removeEventListener('popstate', close)
+  }, [listOpen])
+
+  // Idem para a busca; com ela aberta, a página de trás não rola
+  useEffect(() => {
+    if (!searchOpen) return
+    const close = () =>
+      withTransition(() => {
+        setSearchOpen(false)
+        setQuery('')
+      })
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('popstate', close)
+    return () => {
+      document.body.style.overflow = overflow
+      window.removeEventListener('popstate', close)
+    }
+  }, [searchOpen])
+
+  const headerRef = useRef<HTMLElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
   const dialogRef = useRef<HTMLDialogElement>(null)
   const catalog = useApi(fetchCatalog)
   const professions = useMemo(() => catalog.data ?? [], [catalog.data])
@@ -51,20 +85,48 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
     taskKey,
   )
 
-  const results = useMemo(() => {
+  // A busca procura em todos os serviços, sem depender das profissões escolhidas
+  const searchResults = useMemo(() => {
     const term = normalize(query.trim())
-
-    return getAllTasks(professions).filter(({ title, profession }) => {
-      const matchesFilter = filters.length === 0 || filters.includes(profession.id)
-      const matchesQuery = !term || normalize(`${title} ${profession.name}`).includes(term)
-      return matchesFilter && matchesQuery
-    })
-  }, [query, filters, professions])
+    if (!term) return []
+    return getAllTasks(professions).filter(({ title, profession }) =>
+      normalize(`${title} ${profession.name}`).includes(term),
+    )
+  }, [query, professions])
 
   function toggleFilter(id: string) {
     setFilters((current) =>
       current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
     )
+  }
+
+  function openList() {
+    window.history.pushState({ lista: true }, '')
+    withTransition(() => {
+      setListOpen(true)
+      window.scrollTo(0, 0)
+    }, 'avancar')
+  }
+
+  function closeList() {
+    // Desfaz a entrada criada ao abrir; o popstate fecha a tela
+    if (window.history.state?.lista) window.history.back()
+    else withTransition(() => setListOpen(false), 'voltar')
+  }
+
+  function openSearch() {
+    if (searchOpen) return
+    window.history.pushState({ busca: true }, '')
+    // O card começa logo abaixo do topo
+    setHeaderHeight(headerRef.current?.offsetHeight ?? 0)
+    setSearchOpen(true)
+  }
+
+  function closeSearch() {
+    searchRef.current?.blur()
+    setQuery('')
+    if (window.history.state?.busca) window.history.back()
+    else withTransition(() => setSearchOpen(false))
   }
 
   function openTask(task: Task) {
@@ -82,8 +144,8 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
   const taskPros = pros.data ?? []
   // Sem login, só o primeiro nome: a busca e a ordem usam o nome que está na tela
   const shownName = (pro: Professional) => (isLoggedIn ? pro.name : firstName(pro.name))
-  // Sem login não há preço; a ordem por valor revelaria quem cobra menos
-  const sort = proSort === 'valor' && !isLoggedIn ? 'reputacao' : proSort
+  // Sem login não há preço; a ordem por valor revelaria quem cobra menos ou mais
+  const sort = isPriceSort(proSort) && !isLoggedIn ? 'avaliacao' : proSort
   const listedPros = sortPros(
     taskPros.filter((pro) => normalize(shownName(pro)).includes(normalize(proQuery.trim()))),
     sort,
@@ -96,149 +158,213 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
   const proName = selectedPro && isLoggedIn ? selectedPro.name : proFirstName
 
   const activeProfessions = professions.filter(({ id }) => filters.includes(id))
-  // Os serviços só aparecem depois de escolher uma profissão ou digitar na busca
-  const showResults = filters.length > 0 || query.trim() !== ''
+  // Linha de serviço, a mesma na busca e na lista do "Exibir". Na lista, o nome da
+  // profissão já está no topo do card e não se repete em cada linha.
+  const renderTaskRow = (task: Task, showProfession: boolean) => {
+    const Icon = task.profession.icon
+    return (
+      <li key={`${task.profession.id}-${task.title}`}>
+        <button type="button" className="task" onClick={() => openTask(task)}>
+          <Icon className="task-icon" size={17} strokeWidth={1.5} aria-hidden="true" />
+          <span className="task-text">
+            <span className="task-title">{task.title}</span>
+            {showProfession && <span className="task-profession">{task.profession.name}</span>}
+          </span>
+          <ChevronRight className="task-chevron" size={16} aria-hidden="true" />
+        </button>
+      </li>
+    )
+  }
+
+  const renderResults = (results: Task[]) => (
+    <section className="results" aria-labelledby="results-title">
+      <h2 id="results-title" aria-live="polite">
+        {serviceCount(results.length)}
+      </h2>
+
+      {results.length > 0 ? (
+        <ul className="task-list">{results.map((task) => renderTaskRow(task, true))}</ul>
+      ) : (
+        <div className="empty">
+          <p>Nenhum serviço encontrado para essa busca.</p>
+          <button
+            type="button"
+            className="clear-filters"
+            onClick={() => {
+              setQuery('')
+              searchRef.current?.focus()
+            }}
+          >
+            Limpar busca
+          </button>
+        </div>
+      )}
+    </section>
+  )
 
   return (
     <div className="app">
-      <header className="app-header">
-        <div className="header-top">
-          <div className="brand">
-            <img className="brand-icon" src={logo} alt="zumzum" width={36} height={36} />
-            <span className="wordmark">
-              {isLoggedIn ? `${greeting()}, ${firstName(userName)}` : greeting()}
-            </span>
-          </div>
-          <div className="header-links">
+      {listOpen ? (
+        <>
+          <header className="page-bar">
             <button
               type="button"
-              className="clear-filters"
-              onClick={() => {
-                if (isLoggedIn) onLogout()
-                else onLogin()
-                setSelectedPro(null)
-              }}
+              className="icon-button"
+              aria-label="Voltar para as profissões"
+              onClick={closeList}
             >
-              {isLoggedIn ? 'Sair' : 'Entrar'}
+              <ArrowLeft size={20} aria-hidden="true" />
             </button>
-          </div>
-        </div>
+            <span className="page-bar-title">Serviços</span>
+          </header>
+          <main className="app-main service-list">
+            <div className="list-intro">
+              <h1 className="list-title">{joinNames(activeProfessions.map(({ name }) => name))}</h1>
+              <p className="list-subtitle">
+                {serviceCount(activeProfessions.reduce((total, { tasks }) => total + tasks.length, 0))}
+                {' · '}escolha um para ver quem atende
+              </p>
+            </div>
 
-        <div className="search">
-          <Search className="search-icon" size={17} aria-hidden="true" />
-          <input
-            type="search"
-            aria-label="Buscar serviço"
-            placeholder="Do que você precisa?"
-            value={query}
-            onChange={(event) => setQuery(event.currentTarget.value)}
-          />
-        </div>
-      </header>
-
-      <main className="app-main">
-        <section className="banner" aria-label="Destaques" />
-
-        {activeProfessions.length > 0 && (
-          <div className="active-filters" aria-label="Filtros ativos">
-            {activeProfessions.map((profession) => (
-              <button
-                key={profession.id}
-                type="button"
-                className="filter-tag"
-                onClick={() => toggleFilter(profession.id)}
-                aria-label={`Remover filtro ${profession.name}`}
-              >
-                {profession.name}
-                <X size={14} aria-hidden="true" />
-              </button>
-            ))}
-            <button type="button" className="clear-filters" onClick={() => setFilters([])}>
-              Limpar
-            </button>
-          </div>
-        )}
-
-        <section aria-label="Profissões">
-          {catalog.error && <LoadError message={catalog.error} onRetry={catalog.reload} />}
-          {catalog.loading && !catalog.data && <Loading />}
-          <ul className="profession-grid">
-            {professions.map((profession) => {
-              const { id, name, image, icon: Icon } = profession
-              const isActive = filters.includes(id)
+            {activeProfessions.map((profession) => {
+              const { id, name, image, icon: Icon, tasks } = profession
               return (
-                <li key={id}>
-                  <button
-                    type="button"
-                    className={`profession${isActive ? ' is-active' : ''}`}
-                    aria-pressed={isActive}
-                    onClick={() => toggleFilter(id)}
-                  >
-                    <span className="profession-tile">
+                // Mesmo card translúcido dos resultados da busca, um por profissão
+                <section key={id} className="search-card list-group" aria-labelledby={`grupo-${id}`}>
+                  <div className="list-group-head">
+                    <span className="list-group-tile">
                       {image ? (
-                        <img src={image} alt="" width={56} height={56} />
+                        <img src={image} alt="" width={22} height={22} />
                       ) : (
-                        <Icon size={30} strokeWidth={1.75} aria-hidden="true" />
+                        <Icon size={18} strokeWidth={1.75} aria-hidden="true" />
                       )}
                     </span>
-                    <span className="profession-name">{name}</span>
-                  </button>
-                </li>
+                    <h2 id={`grupo-${id}`}>{name}</h2>
+                    <span className="list-group-count">{serviceCount(tasks.length)}</span>
+                  </div>
+
+                  <ul className="task-list">
+                    {tasks.map((title) => renderTaskRow({ title, profession }, false))}
+                  </ul>
+                </section>
               )
             })}
-          </ul>
-        </section>
+          </main>
+        </>
+      ) : (
+        <>
+          <header ref={headerRef} className={`app-header${searchOpen ? ' is-searching' : ''}`}>
+            <div className="header-top">
+              <div className="brand">
+                <img className="brand-icon" src={logo} alt="zumzum" width={36} height={36} />
+                <span className="wordmark">
+                  {isLoggedIn ? `${greeting()}, ${firstName(userName)}` : greeting()}
+                </span>
+              </div>
+              <div className="header-links">
+                <button
+                  type="button"
+                  className="clear-filters"
+                  onClick={() => {
+                    if (isLoggedIn) onLogout()
+                    else onLogin()
+                    setSelectedPro(null)
+                  }}
+                >
+                  {isLoggedIn ? 'Sair' : 'Entrar'}
+                </button>
+              </div>
+            </div>
 
-        {!showResults && (
-          <p className="start-hint">Escolha uma profissão para ver os serviços.</p>
-        )}
+            <div className="search-row">
+              <div className="search">
+                <Search className="search-icon" size={17} aria-hidden="true" />
+                <input
+                  ref={searchRef}
+                  type="search"
+                  aria-label="Buscar serviço"
+                  placeholder="Do que você precisa?"
+                  value={query}
+                  onFocus={openSearch}
+                  onChange={(event) => {
+                    setQuery(event.currentTarget.value)
+                    openSearch()
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') closeSearch()
+                  }}
+                />
+              </div>
+              {searchOpen && (
+                <button
+                  type="button"
+                  className="icon-button search-close"
+                  aria-label="Fechar busca"
+                  onClick={closeSearch}
+                >
+                  <X size={20} aria-hidden="true" />
+                </button>
+              )}
+            </div>
+          </header>
 
-        {showResults && (
-          <section className="results" aria-labelledby="results-title">
-            <h2 id="results-title" aria-live="polite">
-              {results.length === 1 ? '1 serviço' : `${results.length} serviços`}
-            </h2>
+          {searchOpen && (
+            <div className="search-overlay" style={{ paddingTop: headerHeight + 12 }}>
+              <section className="search-card" aria-label="Resultados da busca">
+                {query.trim() ? (
+                  renderResults(searchResults)
+                ) : (
+                  <p className="search-hint">Digite o serviço que você procura, como “chuveiro” ou “pintura”.</p>
+                )}
+              </section>
+            </div>
+          )}
 
-            {results.length > 0 ? (
-              <ul className="task-list">
-                {results.map((task) => {
-                  const Icon = task.profession.icon
+          <main className="app-main">
+            <section className="banner" aria-label="Destaques" />
+
+            <section aria-label="Profissões">
+              {catalog.error && <LoadError message={catalog.error} onRetry={catalog.reload} />}
+              {catalog.loading && !catalog.data && <Loading />}
+              <ul className="profession-grid">
+                {professions.map((profession) => {
+                  const { id, name, image, icon: Icon } = profession
+                  const isActive = filters.includes(id)
                   return (
-                    <li key={`${task.profession.id}-${task.title}`}>
+                    <li key={id}>
                       <button
                         type="button"
-                        className="task"
-                        onClick={() => openTask(task)}
+                        className={`profession${isActive ? ' is-active' : ''}`}
+                        aria-pressed={isActive}
+                        onClick={() => toggleFilter(id)}
                       >
-                        <Icon className="task-icon" size={17} strokeWidth={1.5} aria-hidden="true" />
-                        <span className="task-text">
-                          <span className="task-title">{task.title}</span>
-                          <span className="task-profession">{task.profession.name}</span>
+                        <span className="profession-tile">
+                          {image ? (
+                            <img src={image} alt="" width={56} height={56} />
+                          ) : (
+                            <Icon size={30} strokeWidth={1.75} aria-hidden="true" />
+                          )}
                         </span>
-                        <ChevronRight className="task-chevron" size={16} aria-hidden="true" />
+                        <span className="profession-name">{name}</span>
                       </button>
                     </li>
                   )
                 })}
               </ul>
-            ) : (
-              <div className="empty">
-                <p>Nenhum serviço encontrado para essa busca.</p>
-                <button
-                  type="button"
-                  className="clear-filters"
-                  onClick={() => {
-                    setQuery('')
-                    setFilters([])
-                  }}
-                >
-                  Limpar busca e filtros
-                </button>
-              </div>
+            </section>
+
+            {filters.length > 0 && (
+              <button type="button" className="primary show-list" onClick={openList}>
+                Exibir
+              </button>
             )}
-          </section>
-        )}
-      </main>
+
+            {filters.length === 0 && (
+              <p className="start-hint">Escolha uma ou mais profissões e toque em Exibir.</p>
+            )}
+          </main>
+        </>
+      )}
 
       <dialog
         ref={dialogRef}
@@ -288,10 +414,13 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
                     value={sort}
                     onChange={(event) => setProSort(event.currentTarget.value as ProSort)}
                   >
-                    <option value="reputacao">Reputação</option>
+                    <option value="avaliacao">Avaliação</option>
                     <option value="nome">Nome</option>
-                    <option value="valor" disabled={!isLoggedIn}>
+                    <option value="menor-valor" disabled={!isLoggedIn}>
                       {isLoggedIn ? 'Menor valor' : 'Menor valor (entre para ver)'}
+                    </option>
+                    <option value="maior-valor" disabled={!isLoggedIn}>
+                      {isLoggedIn ? 'Maior valor' : 'Maior valor (entre para ver)'}
                     </option>
                   </select>
                 </div>
@@ -318,6 +447,7 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
                               <>
                                 <small>média</small>
                                 <PriceValue service={service} />
+                                <small>{perUnit(service.unit)}</small>
                               </>
                             ) : (
                               <small>a combinar</small>
@@ -417,6 +547,7 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
                 <>
                   <span className="price-value">
                     <PriceValue service={selectedService} />
+                    <small className="price-unit"> {perUnit(selectedService.unit)}</small>
                   </span>
                   <span className="price-note">
                     Preço médio informado por {proFirstName}. O valor final é combinado na
@@ -475,15 +606,30 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
         onInicio={() => {
           setQuery('')
           setFilters([])
+          if (listOpen) closeList()
+          if (searchOpen) closeSearch()
         }}
       />
     </div>
   )
 }
 
-type ProSort = 'reputacao' | 'nome' | 'valor'
+function serviceCount(count: number) {
+  return count === 1 ? '1 serviço' : `${count} serviços`
+}
 
-// A lista chega do servidor já pela reputação; os empates das outras ordens mantêm essa ordem
+// "Eletricista", "Eletricista e Pintor", "Eletricista, Pintor e Jardineiro"
+function joinNames(names: string[]) {
+  return names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} e ${names.at(-1)}`
+}
+
+type ProSort ='avaliacao' | 'nome' | 'menor-valor' | 'maior-valor'
+
+function isPriceSort(sort: ProSort) {
+  return sort === 'menor-valor' || sort === 'maior-valor'
+}
+
+// A lista chega do servidor já pela avaliação; os empates das outras ordens mantêm essa ordem
 function sortPros(
   pros: Professional[],
   sort: ProSort,
@@ -491,10 +637,15 @@ function sortPros(
   priceOf: (pro: Professional) => number | null,
 ) {
   if (sort === 'nome') return [...pros].sort((a, b) => nameOf(a).localeCompare(nameOf(b), 'pt-BR'))
-  if (sort === 'valor') {
-    // "A combinar" vai para o fim
-    const price = (pro: Professional) => priceOf(pro) ?? Number.POSITIVE_INFINITY
-    return [...pros].sort((a, b) => price(a) - price(b))
+  if (isPriceSort(sort)) {
+    // "A combinar" vai para o fim nas duas ordens
+    const direction = sort === 'menor-valor' ? 1 : -1
+    return [...pros].sort((a, b) => {
+      const pa = priceOf(a)
+      const pb = priceOf(b)
+      if (pa === null || pb === null) return (pa === null ? 1 : 0) - (pb === null ? 1 : 0)
+      return (pa - pb) * direction
+    })
   }
   return pros
 }

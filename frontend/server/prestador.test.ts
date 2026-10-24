@@ -25,7 +25,14 @@ describe('Busca de prestadores', () => {
     expect(carlos.photo).toBeUndefined()
     expect(carlos.whatsapp).toBeUndefined()
     expect(carlos.reviews).toBeGreaterThan(0)
-    expect(carlos.services[0]).toEqual({ professionId: 'eletricista', name: 'Instalar chuveiro', price: null, hidden: true })
+    // A unidade não é sigilosa: vem mesmo com o preço escondido
+    expect(carlos.services[0]).toEqual({
+      professionId: 'eletricista',
+      name: 'Instalar chuveiro',
+      price: null,
+      unit: 'servico',
+      hidden: true,
+    })
     expect(JSON.stringify(body)).not.toMatch(/Henrique|62988887777/)
   })
 
@@ -40,7 +47,7 @@ describe('Busca de prestadores', () => {
 
   it('serviço "a combinar" não aparece como escondido', async () => {
     const rafael = (await search()).body.find((p: { id: string }) => p.id === 'p3')
-    expect(rafael.services[0]).toEqual({ professionId: 'eletricista', name: 'Instalar chuveiro', price: null })
+    expect(rafael.services[0]).toEqual({ professionId: 'eletricista', name: 'Instalar chuveiro', price: null, unit: 'servico' })
   })
 
   it('ordena pela reputação (poucas avaliações não passam na frente)', async () => {
@@ -71,6 +78,27 @@ describe('Busca de prestadores', () => {
 })
 
 describe('Meus serviços: gravação', () => {
+  it('grava como o preço é cobrado; sem unidade, fica por serviço', async () => {
+    const { token, account } = await signUp(server, { asProvider: true, cpf: VALID_CPFS[0] })
+    await server.request(
+      'PUT',
+      '/api/prestador/servicos',
+      {
+        services: [
+          { professionId: 'pedreiro', name: 'Assentar piso', price: 45, unit: 'm2' },
+          { professionId: 'pedreiro', name: 'Reboco', price: 250, unit: 'diaria' },
+          { professionId: 'pintor', name: 'Pintar portão', price: null },
+        ],
+      },
+      token,
+    )
+    const units = server.db
+      .prepare('SELECT unit FROM services WHERE professional_id = ? ORDER BY position')
+      .all(account.professionalId!)
+      .map((r) => (r as { unit: string }).unit)
+    expect(units).toEqual(['m2', 'diaria', 'servico'])
+  })
+
   it('grava os serviços na ordem, com preço inteiro ou a combinar', async () => {
     const { token, account } = await signUp(server, { asProvider: true, cpf: VALID_CPFS[0] })
     const response = await server.request(
@@ -108,6 +136,7 @@ describe('Meus serviços: gravação', () => {
     ['preço com centavos', { professionId: 'eletricista', name: 'A', price: 10.5 }, 'price'],
     ['preço em texto', { professionId: 'eletricista', name: 'A', price: '100' }, 'price'],
     ['preço acima do limite', { professionId: 'eletricista', name: 'A', price: 1000000 }, 'price'],
+    ['unidade que não existe', { professionId: 'eletricista', name: 'A', price: 1, unit: 'semana' }, 'unit'],
   ])('recusa %s e mantém a lista anterior', async (_, service, field) => {
     const { token, account } = await readyProvider(server)
     const response = await server.request('PUT', '/api/prestador/servicos', { services: [service] }, token)
@@ -169,6 +198,20 @@ describe('Publicar perfil', () => {
     const response = await server.request('POST', '/api/prestador/publicar', { plan: 'mensal', method: 'pix' }, token)
     expect(response.status).toBe(400)
     expect(Object.keys(response.body.fields).sort()).toEqual(['phone', 'photo', 'services'])
+  })
+
+  it('administração publica sem plano nem pagamento; os demais precisam escolher', async () => {
+    const { token, account } = await readyProvider(server)
+    const semPlano = await server.request('POST', '/api/prestador/publicar', {}, token)
+    expect(semPlano.status).toBe(400)
+    expect(semPlano.body.fields.plan).toBeDefined()
+
+    server.db.prepare('UPDATE accounts SET is_admin = 1 WHERE id = ?').run(account.id)
+    const response = await server.request('POST', '/api/prestador/publicar', {}, token)
+    expect(response.status).toBe(200)
+    expect(
+      row('SELECT status, plan, payment_method, trial_ends_at FROM professionals WHERE id = ?', account.professionalId!),
+    ).toEqual({ status: 'publicado', plan: null, payment_method: null, trial_ends_at: null })
   })
 
   it('publica e grava plano, forma de pagamento e fim do período grátis', async () => {

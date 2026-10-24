@@ -165,4 +165,15 @@ describe('Administração: painel', () => {
     const { stats } = (await server.request('GET', '/api/admin/estatisticas', undefined, admin)).body
     expect(stats).toMatchObject({ accounts: 3, providers: 25, published: 25, inTrial: 1, paying: 24 })
   })
+
+  it('perfil da administração conta como publicado, mas não como pagante nem na receita', async () => {
+    const before = (await server.request('GET', '/api/admin/estatisticas', undefined, admin)).body.stats
+    const { token, account } = await readyProvider(server)
+    server.db.prepare('UPDATE accounts SET is_admin = 1 WHERE id = ?').run(account.id)
+    await server.request('POST', '/api/prestador/publicar', {}, token)
+
+    const { stats } = (await server.request('GET', '/api/admin/estatisticas', undefined, admin)).body
+    expect(stats.published).toBe(before.published + 1)
+    expect(stats).toMatchObject({ inTrial: before.inTrial, paying: before.paying, monthlyRevenue: before.monthlyRevenue })
+  })
 })

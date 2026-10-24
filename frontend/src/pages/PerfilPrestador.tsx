@@ -8,6 +8,7 @@ import { LoadError, Loading } from '../components/Status'
 import {
   fetchProfessional,
   fetchReviews,
+  perUnit,
   professionIdsOf,
 } from '../features/profissionais/prestadores'
 import { fetchCatalog, findProfession } from '../features/servicos/catalogo'
@@ -105,7 +106,7 @@ export function PerfilPrestador({ id, isLoggedIn, onLogin }: PerfilPrestadorProp
         <section className="page-section" aria-labelledby="servicos-title">
           <h2 id="servicos-title">Serviços</h2>
           <ul className="line-list">
-            {services.map(({ professionId, name: task, price, hidden }) => (
+            {services.map(({ professionId, name: task, price, unit, hidden }) => (
               <li key={`${professionId}-${task}`} className="line">
                 <span>{task}</span>
                 <span className="pro-price">
@@ -113,6 +114,7 @@ export function PerfilPrestador({ id, isLoggedIn, onLogin }: PerfilPrestadorProp
                     <>
                       <small>média</small>
                       <BlurredPrice />
+                      <small>{perUnit(unit)}</small>
                     </>
                   ) : price == null ? (
                     <small>a combinar</small>
@@ -120,6 +122,7 @@ export function PerfilPrestador({ id, isLoggedIn, onLogin }: PerfilPrestadorProp
                     <>
                       <small>média</small>
                       {formatPrice(price)}
+                      <small>{perUnit(unit)}</small>
                     </>
                   )}
                 </span>

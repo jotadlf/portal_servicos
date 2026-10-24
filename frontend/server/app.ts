@@ -451,7 +451,17 @@ type ProfessionalRow = {
   reviews: number
 }
 
-type ServiceRow = { professional_id: string; profession_id: string; name: string; price: number | null }
+type ServiceRow = {
+  professional_id: string
+  profession_id: string
+  name: string
+  price: number | null
+  unit: PriceUnit
+}
+
+// Como o preço é cobrado; serviço = valor por serviço feito (o padrão)
+const PRICE_UNITS = ['diaria', 'm2', 'empreita', 'servico', 'hora'] as const
+type PriceUnit = (typeof PRICE_UNITS)[number]
 
 // Média bayesiana: poucas avaliações puxam a nota para a média geral,
 // para que 5,0 com 3 avaliações não passe na frente de 4,9 com 132.
@@ -470,6 +480,8 @@ function professionalJson(row: ProfessionalRow, services: ServiceRow[], viewer: 
       professionId: s.profession_id,
       name: s.name,
       price: full ? s.price : null,
+      // A unidade não é sigilosa: aparece mesmo com o preço escondido
+      unit: s.unit,
       hidden: !full && s.price !== null ? true : undefined,
     })),
     photo: full ? photoUrl(row.photo_id) : undefined,
@@ -488,7 +500,7 @@ function servicesOf(db: Db, ids: string[]) {
   if (ids.length === 0) return new Map<string, ServiceRow[]>()
   const rows = db
     .prepare(
-      `SELECT professional_id, profession_id, name, price FROM services
+      `SELECT professional_id, profession_id, name, price, unit FROM services
        WHERE professional_id IN (${ids.map(() => '?').join(',')}) ORDER BY position, id`,
     )
     .all(...ids) as ServiceRow[]
@@ -561,15 +573,18 @@ route('PUT', '/api/prestador/servicos', 'user', ({ db, viewer, body }) => {
     if (price !== null && (!Number.isInteger(price) || (price as number) < 0 || (price as number) > 999999)) {
       fieldError('price', 'Informe o preço em reais inteiros, até 999999.')
     }
-    return { professionId, name, price: price as number | null }
+    // Sem unidade (clientes antigos): por serviço
+    const unit = item.unit ?? 'servico'
+    if (!PRICE_UNITS.includes(unit as PriceUnit)) fieldError('unit', 'Escolha como o preço é cobrado.')
+    return { professionId, name, price: price as number | null, unit: unit as PriceUnit }
   })
 
   transaction(db, () => {
     db.prepare('DELETE FROM services WHERE professional_id = ?').run(pro.id)
     const insert = db.prepare(
-      'INSERT INTO services (professional_id, profession_id, name, price, position) VALUES (?, ?, ?, ?, ?)',
+      'INSERT INTO services (professional_id, profession_id, name, price, unit, position) VALUES (?, ?, ?, ?, ?, ?)',
     )
-    services.forEach((s, index) => insert.run(pro.id, s.professionId, s.name, s.price, index))
+    services.forEach((s, index) => insert.run(pro.id, s.professionId, s.name, s.price, s.unit, index))
   })
   return professionalJson(pro, servicesOf(db, [pro.id]).get(pro.id) ?? [], viewer)
 })
@@ -595,6 +610,14 @@ route('POST', '/api/prestador/publicar', 'user', ({ db, viewer, body }) => {
   if (total === 0) missing.services = 'Cadastre pelo menos um serviço.'
   if (Object.keys(missing).length > 0) {
     throw new HttpError(400, 'Falta completar o perfil antes de publicar.', missing)
+  }
+
+  // A administração usa o portal inteiro sem contratar plano: publica sem plano nem pagamento
+  if (viewer?.isAdmin) {
+    db.prepare(
+      `UPDATE professionals SET status = 'publicado', plan = NULL, payment_method = NULL, trial_ends_at = NULL WHERE id = ?`,
+    ).run(pro.id)
+    return { status: 'publicado' }
   }
 
   const settings = loadSettings(db)
@@ -760,10 +783,16 @@ route('GET', '/api/admin/estatisticas', 'admin', ({ db }) => {
   const accounts = count('SELECT count(*) AS total FROM accounts WHERE is_admin = 0')
   const providers = count('SELECT count(*) AS total FROM professionals')
   const published = db
-    .prepare(`SELECT plan, trial_ends_at FROM professionals WHERE status = 'publicado'`)
-    .all() as { plan: PlanId | null; trial_ends_at: string | null }[]
-  const inTrial = published.filter((p) => p.trial_ends_at && p.trial_ends_at > today)
-  const paying = published.filter((p) => !(p.trial_ends_at && p.trial_ends_at > today))
+    .prepare(
+      `SELECT p.plan, p.trial_ends_at, coalesce(a.is_admin, 0) AS is_admin
+       FROM professionals p LEFT JOIN accounts a ON a.id = p.account_id
+       WHERE p.status = 'publicado'`,
+    )
+    .all() as { plan: PlanId | null; trial_ends_at: string | null; is_admin: number }[]
+  // Perfil da administração é publicado sem plano: não está em teste, não paga nem entra na receita
+  const billed = published.filter((p) => p.is_admin !== 1)
+  const inTrial = billed.filter((p) => p.trial_ends_at && p.trial_ends_at > today)
+  const paying = billed.filter((p) => !(p.trial_ends_at && p.trial_ends_at > today))
 
   const ranking = (
     db

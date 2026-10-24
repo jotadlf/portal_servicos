@@ -22,6 +22,8 @@
   --gutter: 16px;
   --width: 56rem;
   --menu-height: 60px;
+  /* Curva das aberturas: começa rápido e assenta devagar */
+  --ease-suave: cubic-bezier(0.22, 1, 0.36, 1);
 
   color-scheme: light;
   font-family: var(--font);
@@ -98,6 +100,111 @@ button {
 
 .search {
   position: relative;
+  transition: transform 200ms var(--ease-suave);
+}
+
+.search-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.search-row .search {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Modo busca: o campo vem um pouco à frente, com sombra, sobre o card translúcido */
+.is-searching .search {
+  transform: translateY(-2px) scale(1.015);
+}
+
+.is-searching .search input {
+  border-color: var(--azulejo);
+  box-shadow: 0 10px 28px rgb(29 43 42 / 0.16);
+}
+
+/* O X próprio fecha a busca; o X nativo do campo ficaria repetido */
+.is-searching .search input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.search-close {
+  color: var(--grafite);
+  background: var(--superficie);
+  box-shadow: 0 4px 14px rgb(29 43 42 / 0.12);
+  animation: search-pop 160ms var(--ease-suave);
+}
+
+.search-overlay {
+  position: fixed;
+  /* Abaixo do topo e do menu, acima do resto */
+  z-index: 4;
+  inset: 0;
+  overflow-y: auto;
+  padding: 12px max(var(--gutter), (100% - var(--width)) / 2)
+    calc(24px + var(--menu-height) + env(safe-area-inset-bottom));
+  background: rgb(196 229 222 / 0.55);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  animation: search-fade 160ms ease-out;
+}
+
+.search-card {
+  padding: 14px;
+  border: 1px solid rgb(255 255 255 / 0.75);
+  border-radius: 18px;
+  /* O fundo já vem desfocado pela camada da busca */
+  background: rgb(255 255 255 / 0.8);
+  box-shadow: 0 16px 40px rgb(29 43 42 / 0.14);
+  animation: search-card-in 220ms var(--ease-suave);
+}
+
+.search-card .empty {
+  background: none;
+}
+
+.search-hint {
+  margin: 0;
+  padding: 10px 4px;
+  color: var(--cimento);
+  font-size: 0.9375rem;
+  text-align: center;
+}
+
+@keyframes search-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes search-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes search-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search,
+  .is-searching .search {
+    transition: none;
+    transform: none;
+  }
+
+  .search-close,
+  .search-overlay,
+  .search-card {
+    animation: none;
+  }
 }
 
 .search-icon {
@@ -117,7 +224,9 @@ button {
   border-radius: 12px;
   background: var(--superficie);
   font-size: 0.9375rem;
-  transition: border-color 120ms;
+  transition:
+    border-color 200ms,
+    box-shadow 200ms var(--ease-suave);
 }
 
 .search input::placeholder {
@@ -127,26 +236,6 @@ button {
 .search input:focus {
   outline: none;
   border-color: var(--grafite);
-}
-
-.active-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-}
-
-.filter-tag {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  padding: 6px 10px 6px 12px;
-  border: 0;
-  border-radius: 999px;
-  color: var(--azulejo);
-  background: var(--superficie);
-  font-size: 0.875rem;
-  font-weight: 600;
 }
 
 .clear-filters {
@@ -280,9 +369,10 @@ button {
   border-color: var(--azulejo);
 }
 
+/* As colunas esticam para ocupar a linha toda: nunca sobra uma faixa quase do tamanho de um card */
 @media (min-width: 720px) {
   .profession-grid {
-    grid-template-columns: repeat(auto-fill, 112px);
+    grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
   }
 }
 
@@ -392,32 +482,118 @@ button {
 
 /* Folha de pedido: sobe de baixo no celular, centralizada no desktop */
 
+/* Translúcida como o card da busca, e alta: com muitos profissionais, rola-se menos */
 .sheet {
-  width: min(100%, 32rem);
+  width: min(100%, 40rem);
   max-width: 100%;
-  max-height: 90vh;
+  height: 92vh;
+  height: 92dvh;
+  max-height: none;
   margin: auto auto 0;
   padding: 0;
-  border: 0;
+  border: 1px solid rgb(255 255 255 / 0.75);
+  border-bottom: 0;
   border-radius: 20px 20px 0 0;
   color: var(--grafite);
-  background: var(--superficie);
+  /* O fundo atrás já vem desfocado (::backdrop): sem desfoque próprio, que pesaria ao deslizar */
+  background: rgb(255 255 255 / 0.82);
+  box-shadow: 0 -12px 40px rgb(29 43 42 / 0.16);
+  /* Abre e fecha deslizando; "display" e "overlay" esperam a saída terminar.
+     Só opacidade e posição animam: o desfoque fica parado (animá-lo pesa no celular) */
+  opacity: 0;
+  transform: translateY(24px);
+  will-change: transform, opacity;
+  transition:
+    opacity 180ms ease-out,
+    transform 240ms var(--ease-suave),
+    overlay 240ms allow-discrete,
+    display 240ms allow-discrete;
+}
+
+.sheet[open] {
+  opacity: 1;
+  transform: none;
+}
+
+@starting-style {
+  .sheet[open] {
+    opacity: 0;
+    transform: translateY(24px);
+  }
 }
 
 .sheet::backdrop {
-  background: rgb(36 40 44 / 0.45);
+  background: rgb(196 229 222 / 0.55);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  transition:
+    opacity 200ms ease-out,
+    overlay 240ms allow-discrete,
+    display 240ms allow-discrete;
+}
+
+.sheet[open]::backdrop {
+  opacity: 1;
+}
+
+@starting-style {
+  .sheet[open]::backdrop {
+    opacity: 0;
+  }
 }
 
 @media (min-width: 640px) {
   .sheet {
+    height: min(88vh, 52rem);
+    height: min(88dvh, 52rem);
     margin: auto;
+    border-bottom: 1px solid rgb(255 255 255 / 0.75);
     border-radius: 20px;
+    box-shadow: 0 16px 40px rgb(29 43 42 / 0.16);
+    transform: translateY(8px) scale(0.98);
+  }
+
+  .sheet[open] {
+    transform: none;
+  }
+
+  @starting-style {
+    .sheet[open] {
+      transform: translateY(8px) scale(0.98);
+    }
   }
 }
 
+/* Lista de profissionais ⇄ perfil dentro da folha */
 .sheet-body {
-  display: grid;
+  animation: sheet-view-in 200ms var(--ease-suave);
+}
+
+@keyframes sheet-view-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet,
+  .sheet::backdrop {
+    transition: none;
+  }
+
+  .sheet-body {
+    animation: none;
+  }
+}
+
+/* Coluna que ocupa a folha toda: o aviso de login fica no rodapé mesmo com poucos nomes */
+.sheet-body {
+  display: flex;
+  flex-direction: column;
   gap: 12px;
+  min-height: 100%;
   padding: 16px var(--gutter) 20px;
 }
 
@@ -434,8 +610,11 @@ button {
   font-size: 0.875rem;
 }
 
-.sheet h2 {
+/* A folha pode estar dentro de uma seção da página: o título dela não vira título pequeno de seção */
+.sheet h2,
+.page-section .sheet h2 {
   margin: 0;
+  color: var(--grafite);
   font-size: 1.5rem;
   font-weight: 700;
   font-family: var(--font-titulo);
@@ -486,7 +665,8 @@ button {
 /* Procurar por nome e ordenar, acima da lista de profissionais */
 .pro-tools {
   display: grid;
-  grid-template-columns: 1fr auto;
+  /* A ordenação não cresce com a opção mais longa ("Menor valor (entre para ver)") */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 10rem);
   gap: 8px;
 }
 
@@ -509,9 +689,9 @@ button {
   position: sticky;
   bottom: 0;
   /* Cobre a lista que passa por baixo, até a borda da folha */
-  margin: 0 calc(-1 * var(--gutter)) -20px;
+  margin: auto calc(-1 * var(--gutter)) -20px;
   padding: 10px var(--gutter) 20px;
-  background: var(--superficie);
+  background: rgb(255 255 255 / 0.92);
   box-shadow: 0 -6px 12px rgb(36 40 44 / 0.06);
 }
 
@@ -1928,10 +2108,17 @@ a.icon-button {
   max-width: calc(64rem + 2 * var(--gutter));
 }
 
+/* 4 números: 2 por linha ou todos numa linha, sem sobrar um sozinho embaixo */
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+@media (min-width: 720px) {
+  .kpi-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .mini-stats {
@@ -2215,4 +2402,288 @@ a.icon-button {
   color: var(--cimento);
   font-variant-numeric: tabular-nums;
   text-align: right;
+}
+
+/* Troca de telas (View Transitions): topo e menu ficam, o conteúdo desliza e esmaece.
+   Navegador sem suporte troca na hora, sem efeito. */
+
+.app-header,
+.page-bar {
+  view-transition-name: topo;
+}
+
+.app-main,
+.page {
+  view-transition-name: conteudo;
+}
+
+.menu {
+  view-transition-name: menu;
+}
+
+.search-overlay {
+  view-transition-name: busca;
+}
+
+::view-transition-group(*) {
+  animation-duration: 220ms;
+  animation-timing-function: var(--ease-suave);
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 180ms;
+}
+
+::view-transition-old(conteudo) {
+  animation: vt-fade-out 100ms ease-in both;
+}
+
+::view-transition-new(conteudo) {
+  animation: vt-fade-up 220ms var(--ease-suave) both;
+}
+
+/* Abrir a lista de serviços: entra pela direita; voltar: entra pela esquerda */
+html[data-nav='avancar']::view-transition-old(conteudo) {
+  animation: vt-out-left 120ms ease-in both;
+}
+
+html[data-nav='avancar']::view-transition-new(conteudo) {
+  animation: vt-in-right 240ms var(--ease-suave) both;
+}
+
+html[data-nav='voltar']::view-transition-old(conteudo) {
+  animation: vt-out-right 120ms ease-in both;
+}
+
+html[data-nav='voltar']::view-transition-new(conteudo) {
+  animation: vt-in-left 240ms var(--ease-suave) both;
+}
+
+/* Fechar a busca: o card desce um pouco e some */
+::view-transition-old(busca) {
+  animation: vt-sink 150ms ease-in both;
+}
+
+@keyframes vt-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes vt-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes vt-sink {
+  to {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+@keyframes vt-out-left {
+  to {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+}
+
+@keyframes vt-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
+
+@keyframes vt-out-right {
+  to {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+}
+
+@keyframes vt-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
+/* Tela de serviços das profissões escolhidas ("Exibir"): mesmo estilo dos resultados da busca */
+
+.service-list {
+  gap: 16px;
+}
+
+.list-intro {
+  display: grid;
+  gap: 2px;
+}
+
+.list-title {
+  margin: 0;
+  color: var(--grafite);
+  font-family: var(--font-titulo);
+  font-size: 1.375rem;
+  font-weight: 800;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+.list-subtitle {
+  margin: 0;
+  color: var(--cimento);
+  font-size: 0.875rem;
+}
+
+/* Um card translúcido (.search-card) por profissão */
+.list-group {
+  display: grid;
+  gap: 10px;
+}
+
+.list-group-head {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 0 2px;
+}
+
+.list-group-tile {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  color: var(--azulejo);
+  background: var(--azulejo-tom);
+}
+
+.list-group-head h2 {
+  margin: 0;
+  color: var(--grafite);
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.list-group-count {
+  margin-left: auto;
+  color: var(--cimento);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+/* Folha de formulário (novo serviço): mesmo vidro da lista de profissionais,
+   mas do tamanho do conteúdo */
+.sheet.form-sheet {
+  /* "auto" esticaria: o dialog modal fica preso às bordas da tela */
+  height: fit-content;
+  max-height: 92vh;
+  max-height: 92dvh;
+}
+
+.form-sheet .sheet-body {
+  min-height: 0;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom));
+}
+
+.form-sheet .service-editor {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.form-sheet .editor-actions {
+  margin-top: 4px;
+}
+
+/* Telas maiores: a folha de cadastro fica no alto, perto de onde se toca, e não no meio */
+@media (min-width: 640px) {
+  .sheet.form-sheet {
+    margin: max(24px, 8vh) auto auto;
+  }
+}
+
+/* "Cobrado por": Diária, M², Empreita, Serviço, Hora */
+.unit-choice {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.unit-choice legend {
+  margin-bottom: 8px;
+  padding: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.unit-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.unit-option {
+  position: relative;
+}
+
+/* O rádio continua lá (teclado e leitor de tela); o que aparece é o chip */
+.unit-option input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.unit-option span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--linha);
+  border-radius: 999px;
+  color: var(--grafite);
+  background: var(--superficie);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  transition:
+    background-color 150ms,
+    border-color 150ms,
+    color 150ms;
+}
+
+.unit-option input:checked + span {
+  border-color: var(--azulejo);
+  color: var(--reboco);
+  background: var(--azulejo);
+}
+
+.unit-option input:focus-visible + span {
+  outline: 3px solid var(--azulejo);
+  outline-offset: 2px;
+}
+
+/* "R$ 150 por m²" no perfil dentro da folha */
+.price-unit {
+  color: var(--cimento);
+  font-size: 0.9375rem;
+  font-weight: 600;
 }
