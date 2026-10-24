@@ -3,12 +3,9 @@ import { ImagePlus, Trash2 } from 'lucide-react'
 import { BottomMenu } from '../components/BottomMenu'
 import { LoginBar } from '../components/LoginBar'
 import { PageBar } from '../components/PageBar'
-import { ColumnChart } from '../components/graficos/ColumnChart'
-import { LineChart } from '../components/graficos/LineChart'
 import { StackedBar } from '../components/graficos/StackedBar'
 import { LoadError, Loading } from '../components/Status'
 import { fetchStats, type RankingRow, type Stats } from '../features/admin/estatisticas'
-import { monthlyHistory } from '../features/admin/historico'
 import { formatMoney, gateways, type PaymentGateway, type PlanSettings } from '../features/conta/plano'
 import { fetchPlanSettings, savePlanSettings } from '../features/conta/plano-api'
 import type { Account } from '../features/conta/usuario'
@@ -82,15 +79,9 @@ export function Admin({ account, onLogin }: AdminProps) {
 // Cores dos gráficos, validadas para daltonismo e contraste sobre o branco
 const CHART = {
   primary: '#00897b',
-  secondary: '#eb6834',
   tertiary: '#2a78d6',
   muted: '#b9c6c3',
 }
-
-const periods = [
-  { months: 6, label: '6 meses' },
-  { months: 12, label: '12 meses' },
-]
 
 function Painel() {
   const data = useApi(fetchStats)
@@ -99,122 +90,35 @@ function Painel() {
   return <PainelView stats={data.data.stats} ranking={data.data.ranking} />
 }
 
+// Quantas modalidades aparecem no ranking do painel
+const TOP_MODALITIES = 5
+
 function PainelView({ stats, ranking }: { stats: Stats; ranking: RankingRow[] }) {
-  const [months, setMonths] = useState(6)
-  const history = monthlyHistory(months)
-  const labels = history.map((point) => point.label)
-  const max = Math.max(1, ...ranking.map(({ services }) => services))
+  const top = [...ranking].sort((a, b) => b.services - a.services).slice(0, TOP_MODALITIES)
+  const max = Math.max(1, ...top.map(({ services }) => services))
   const count = (value: number) => value.toLocaleString('pt-BR')
 
   const tiles = [
-    {
-      label: 'Pessoas cadastradas',
-      value: count(stats.people),
-      note: `${stats.consumersOnly} ${stats.consumersOnly === 1 ? 'só contrata' : 'só contratam'} serviços`,
-    },
-    {
-      label: 'Prestadores publicados',
-      value: count(stats.published),
-      note: `de ${stats.providers} prestadores; ${stats.drafts} em rascunho`,
-    },
-    {
-      label: 'Serviços cadastrados',
-      value: count(stats.services),
-      note: `em ${stats.modalities} modalidades`,
-    },
-    {
-      label: 'Receita mensal recorrente',
-      value: formatMoney(stats.monthlyRevenue),
-      note: `${stats.paying} pagando agora`,
-    },
+    { label: 'Pessoas', value: count(stats.people) },
+    { label: 'Prestadores publicados', value: count(stats.published) },
+    { label: 'Serviços', value: count(stats.services) },
+    { label: 'Receita mensal', value: formatMoney(stats.monthlyRevenue) },
   ]
 
   return (
     <>
       <section className="kpi-grid" aria-label="Números de agora">
-        {tiles.map(({ label, value, note }) => (
+        {tiles.map(({ label, value }) => (
           <div key={label} className="stat-tile">
             <span className="stat-label">{label}</span>
             <strong className="stat-value">{value}</strong>
-            <span className="stat-note">{note}</span>
           </div>
         ))}
       </section>
 
-      <ul className="mini-stats" aria-label="Outros números">
-        <li>
-          <b>{count(stats.contacts)}</b> contatos pedidos
-        </li>
-        <li>
-          <b>{count(stats.reviews)}</b> avaliações escritas
-        </li>
-        <li>
-          <b>{count(stats.inTrial)}</b> no período grátis
-        </li>
-      </ul>
-
-      <div className="dash-toolbar">
-        <h2>Evolução</h2>
-        <span className="sample-badge">Dados de exemplo</span>
-        <div className="segmented" role="group" aria-label="Período">
-          {periods.map((period) => (
-            <button
-              key={period.months}
-              type="button"
-              aria-pressed={months === period.months}
-              onClick={() => setMonths(period.months)}
-            >
-              {period.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="dash-grid">
-        <section className="chart-card" aria-labelledby="g-cadastros">
-          <h3 id="g-cadastros">Novos cadastros por mês</h3>
-          <p className="chart-sub">Pessoas que criaram conta no mês</p>
-          <LineChart
-            label="Novos cadastros por mês"
-            labels={labels}
-            series={[
-              {
-                name: 'Contratantes',
-                color: CHART.primary,
-                values: history.map((point) => point.newConsumers),
-              },
-              {
-                name: 'Prestadores',
-                color: CHART.secondary,
-                values: history.map((point) => point.newProviders),
-              },
-            ]}
-            format={count}
-          />
-        </section>
-
-        <section className="chart-card" aria-labelledby="g-receita">
-          <h3 id="g-receita">Receita recorrente</h3>
-          <p className="chart-sub">Soma mensal dos planos ativos no fim de cada mês</p>
-          <ColumnChart
-            label="Receita recorrente por mês"
-            name="Receita"
-            labels={labels}
-            values={history.map((point) => point.revenue)}
-            color={CHART.primary}
-            format={formatMoney}
-          />
-        </section>
-      </div>
-
-      <div className="dash-toolbar">
-        <h2>Agora</h2>
-      </div>
-
       <div className="dash-grid">
         <section className="chart-card" aria-labelledby="g-situacao">
-          <h3 id="g-situacao">Situação dos prestadores</h3>
-          <p className="chart-sub">{stats.providers} perfis de prestador</p>
+          <h3 id="g-situacao">Prestadores</h3>
           <StackedBar
             label={`Prestadores: ${stats.paying} pagando, ${stats.inTrial} no período grátis, ${stats.drafts} em rascunho`}
             segments={[
@@ -226,31 +130,20 @@ function PainelView({ stats, ranking }: { stats: Stats; ranking: RankingRow[] })
         </section>
 
         <section className="chart-card" aria-labelledby="g-modalidades">
-          <h3 id="g-modalidades">Serviços por modalidade</h3>
-          <p className="chart-sub">Quantos serviços cada modalidade tem cadastrados</p>
+          <h3 id="g-modalidades">Top modalidades</h3>
           <ul className="bar-list">
-            {ranking.map(({ professionId, name, services, providers }) => (
+            {top.map(({ professionId, name, services }) => (
               <li key={professionId}>
                 <span className="bar-label">{name}</span>
                 <span className="bar-track" aria-hidden="true">
                   <span className="bar-fill" style={{ width: `${(services / max) * 100}%` }} />
                 </span>
-                <span className="bar-value">
-                  {services}
-                  <small>
-                    {providers} {providers === 1 ? 'prestador' : 'prestadores'}
-                  </small>
-                </span>
+                <span className="bar-value">{services}</span>
               </li>
             ))}
           </ul>
         </section>
       </div>
-
-      <p className="section-note">
-        “Agora” usa os dados do protótipo e muda conforme você mexe no portal. “Evolução” é de
-        exemplo: o protótipo ainda não guarda a data dos cadastros e pagamentos.
-      </p>
     </>
   )
 }
@@ -461,10 +354,7 @@ function NovaModalidade({ professions, onAdded }: { professions: Profession[]; o
           />
         </label>
       </div>
-      <small className="field-help">
-        Imagem opcional, de preferência PNG com fundo transparente. Sem imagem, o card
-        mostra um ícone de ferramenta.
-      </small>
+      <small className="field-help">Imagem opcional (PNG ou WebP).</small>
 
       <label className="field">
         <span>Serviços sugeridos (um por linha)</span>
@@ -641,19 +531,12 @@ function PlanoFields({ settings }: { settings: PlanSettings }) {
             Cartão de crédito
           </label>
         </fieldset>
-
-        <p className="section-note">
-          As chaves de acesso do gateway não ficam nesta tela: elas são guardadas no servidor
-          (Supabase), onde o app não consegue lê-las.
-        </p>
       </section>
 
       <div aria-live="polite">
         {error && <p className="form-error">{error}</p>}
         {saved && (
-          <p className="form-ready">
-            Configurações salvas. Valem para quem publicar a partir de agora.
-          </p>
+          <p className="form-ready">Configurações salvas.</p>
         )}
       </div>
 
