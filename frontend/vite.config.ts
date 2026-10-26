@@ -35,7 +35,7 @@ export default defineConfig(({ mode }) => {
       react(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
+        includeAssets: ['favicon.png', 'apple-touch-icon.png'],
         manifest: {
           name: 'Portal de Serviços',
           short_name: 'Serviços',
@@ -46,7 +46,7 @@ export default defineConfig(({ mode }) => {
           // Relativos: funcionam na raiz e na subpasta do Pages
           start_url: './',
           scope: './',
-          // Abelha do ZumZum. A maskable tem fundo cheio e margem para o recorte do Android.
+          // Abelha do ZumZum no hexágono verde. A maskable tem fundo cheio e margem para o recorte do Android.
           icons: [
             { src: 'pwa-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
             { src: 'pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
