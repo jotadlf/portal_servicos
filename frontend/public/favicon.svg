@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="512" height="512">
+<g>
+<polygon points="60,8 105,34 105,86 60,112 15,86 15,34" fill="#F5B700" stroke="#F5B700" stroke-width="8" stroke-linejoin="round"/>
+<path d="M55 44 Q52 34 45 31 M65 44 Q68 34 75 31" fill="none" stroke="#1E1E1E" stroke-width="3.5" stroke-linecap="round"/>
+<ellipse cx="43" cy="52" rx="14" ry="9" transform="rotate(-30 43 52)" fill="#FFFFFF" stroke="#1E1E1E" stroke-width="3.5"/>
+<ellipse cx="77" cy="52" rx="14" ry="9" transform="rotate(30 77 52)" fill="#FFFFFF" stroke="#1E1E1E" stroke-width="3.5"/>
+<path d="M56 88 L60 97 L64 88 Z" fill="#1E1E1E"/>
+<ellipse cx="60" cy="66" rx="17" ry="24" fill="#1E1E1E"/>
+<clipPath id="bi"><ellipse cx="60" cy="66" rx="17" ry="24"/></clipPath>
+<g clip-path="url(#bi)"><rect x="40" y="60" width="40" height="6" fill="#F5B700"/><rect x="40" y="73" width="40" height="6" fill="#F5B700"/></g>
+</g>
+</svg>
