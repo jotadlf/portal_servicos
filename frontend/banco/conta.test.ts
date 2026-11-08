@@ -263,6 +263,8 @@ describe('Perfil: CPF fixo', () => {
 
   it('salvar o perfil não mexe no CPF', async () => {
     const { client, account } = await signUp({ asProvider: true, cpf: VALID_CPFS[0] })
+    // Prestador só salva o perfil com foto
+    await sendPhoto(client, account.id)
     expect((await call('salvar_conta', { ...fullProfile, cpf: VALID_CPFS[1] }, client)).status).toBe(200)
     expect((await profile(account.id))!.cpf).toBe(VALID_CPFS[0])
   })

@@ -2,7 +2,7 @@ import { useRef, useState, type FormEvent } from 'react'
 import { Avatar } from '../components/Avatar'
 import { BottomMenu } from '../components/BottomMenu'
 import { LoginBar } from '../components/LoginBar'
-import { updateAccount, uploadPhoto, type Account, type Address } from '../features/conta/usuario'
+import { deleteAccount, updateAccount, uploadPhoto, type Account, type Address } from '../features/conta/usuario'
 import { routes } from '../hooks/useHashRoute'
 import { ApiError, errorMessage } from '../lib/api'
 import { fetchAddress, formatCep, isValidUf } from '../lib/cep'
@@ -22,12 +22,18 @@ export function Conta({ account, onLogin, onLogout, onAccountChange }: ContaProp
     <div className="app">
       <main className="page">
         {account ? (
-          <PerfilForm
-            key={account.id}
-            account={account}
-            onLogout={onLogout}
-            onAccountChange={onAccountChange}
-          />
+          <>
+            <PerfilForm
+              key={account.id}
+              account={account}
+              onLogout={onLogout}
+              onAccountChange={onAccountChange}
+            />
+            {/* O portal não pode ficar sem administração */}
+            {!account.isAdmin && (
+              <DeleteAccount isProvider={Boolean(account.professionalId)} onDeleted={onLogout} />
+            )}
+          </>
         ) : (
           <div className="page-section">
             <h1 className="page-title">Seu perfil</h1>
@@ -38,6 +44,78 @@ export function Conta({ account, onLogin, onLogout, onAccountChange }: ContaProp
 
       <BottomMenu current="conta" showAdmin={account?.isAdmin} />
     </div>
+  )
+}
+
+// Apagar a conta pede confirmação aqui mesmo, sem janela por cima. Também é o caminho
+// para quem errou o CPF, que não pode ser trocado: apagar e criar outra conta.
+function DeleteAccount({ isProvider, onDeleted }: { isProvider: boolean; onDeleted: () => void }) {
+  const [confirming, setConfirming] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const cancelRef = useRef<HTMLButtonElement>(null)
+  const startRef = useRef<HTMLButtonElement>(null)
+
+  function open() {
+    setConfirming(true)
+    setError('')
+    // Foco no "Cancelar": a escolha segura fica à mão
+    window.setTimeout(() => cancelRef.current?.focus())
+  }
+
+  function cancel() {
+    setConfirming(false)
+    window.setTimeout(() => startRef.current?.focus())
+  }
+
+  async function confirm() {
+    if (busy) return
+    setBusy(true)
+    setError('')
+    try {
+      await deleteAccount()
+      window.location.hash = routes.inicio
+      onDeleted()
+    } catch (failure) {
+      setError(errorMessage(failure))
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="page-section delete-account" aria-labelledby="apagar-conta-titulo">
+      <h2 id="apagar-conta-titulo">Apagar conta</h2>
+      {confirming ? (
+        <>
+          <p className="notice notice-danger">
+            {isProvider
+              ? 'Seu perfil público, seus serviços, os contatos e as avaliações recebidas serão apagados junto. '
+              : 'Seus dados e sua foto serão apagados. '}
+            Isso não pode ser desfeito.
+          </p>
+          <div aria-live="polite">{error && <p className="form-error">{error}</p>}</div>
+          <div className="form-actions">
+            <button ref={cancelRef} type="button" className="clear-filters" disabled={busy} onClick={cancel}>
+              Cancelar
+            </button>
+            <button type="button" className="danger-button" disabled={busy} onClick={confirm}>
+              {busy ? 'Apagando…' : 'Apagar minha conta'}
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="section-note">
+            Apaga sua conta e tudo o que está nela. Para corrigir o CPF, apague a conta e crie outra.
+          </p>
+          <div>
+            <button ref={startRef} type="button" className="clear-filters danger-link" onClick={open}>
+              Apagar conta
+            </button>
+          </div>
+        </>
+      )}
+    </section>
   )
 }
 

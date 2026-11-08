@@ -2041,6 +2041,25 @@ a.icon-button {
   justify-content: flex-end;
 }
 
+/* Perfil: apagar a conta fica no fim, separado do formulário */
+.delete-account {
+  margin-top: 16px;
+  padding-top: 20px;
+  border-top: 1px solid var(--linha);
+}
+
+.danger-link {
+  color: var(--erro);
+}
+
+.notice-danger {
+  border-left-color: var(--erro);
+}
+
+.danger-button:disabled {
+  opacity: 0.6;
+}
+
 .danger-button {
   padding: 8px 12px;
   border: 0;

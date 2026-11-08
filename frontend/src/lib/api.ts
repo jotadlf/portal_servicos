@@ -140,6 +140,18 @@ export async function removeImage(path: string | undefined) {
   await getSupabaseClient().storage.from(BUCKET).remove([path]).catch(() => {})
 }
 
+// Apaga todas as imagens de uma pasta; se falhar, elas só ficam sobrando no Storage
+export async function removeFolder(folder: string) {
+  const bucket = getSupabaseClient().storage.from(BUCKET)
+  try {
+    const { data } = await bucket.list(folder, { limit: 1000 })
+    const paths = (data ?? []).map((file) => `${folder}/${file.name}`)
+    if (paths.length > 0) await bucket.remove(paths)
+  } catch {
+    // Sem rede aqui, a próxima chamada ao banco avisa
+  }
+}
+
 // Caminho guardado no banco → endereço da imagem. As fotos de exemplo vêm do próprio app.
 export function imageUrl(path: string | undefined) {
   if (!path) return undefined

@@ -232,3 +232,43 @@ describe('Conta: CEP', () => {
     expect(await screen.findByText(/Não encontramos esse CEP/)).toBeInTheDocument()
   })
 })
+
+describe('Conta: apagar a conta', () => {
+  const startDelete = () => userEvent.click(screen.getByRole('button', { name: 'Apagar conta' }))
+  const confirmDelete = () => userEvent.click(screen.getByRole('button', { name: 'Apagar minha conta' }))
+
+  it('pede confirmação; cancelar não apaga nada', async () => {
+    const account = await newAccount()
+    renderConta(account)
+    await startDelete()
+    expect(screen.getByText(/Isso não pode ser desfeito/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cancelar' })).toHaveFocus()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+    expect(screen.queryByRole('button', { name: 'Apagar minha conta' })).not.toBeInTheDocument()
+    expect(await dbRow('select id from public.contas where id = $1', account.id)).toBeDefined()
+  })
+
+  it('apaga a conta, as fotos e encerra a sessão', async () => {
+    const account = await newAccount({ asProvider: true })
+    const { onLogout } = renderConta(account)
+    await userEvent.upload(photoInput(), PNG_FILE())
+    await waitFor(async () => expect(await uploadedBy(account.id)).toBe(1))
+
+    await startDelete()
+    expect(screen.getByText(/Seu perfil público, seus serviços/)).toBeInTheDocument()
+    await confirmDelete()
+
+    await waitFor(() => expect(onLogout).toHaveBeenCalled())
+    expect(window.location.hash).toBe('#/')
+    expect(await dbRow('select id from public.contas where id = $1', account.id)).toBeUndefined()
+    expect(await dbRow('select id from auth.users where id = $1', account.id)).toBeUndefined()
+    expect(await uploadedBy(account.id)).toBe(0)
+    expect(await currentAccount()).toBeUndefined()
+  })
+
+  it('a administração não vê a opção', async () => {
+    renderConta({ ...(await loginAs('admin@exemplo.com')), isAdmin: true })
+    expect(screen.queryByRole('button', { name: 'Apagar conta' })).not.toBeInTheDocument()
+  })
+})

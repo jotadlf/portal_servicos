@@ -1,5 +1,5 @@
 // Contas: login no Supabase Auth, dados na conta (public.contas). O CPF fica só no banco.
-import { ApiError, imageUrl, removeImage, rpc, uploadImage } from '../../lib/api'
+import { ApiError, imageUrl, removeFolder, removeImage, rpc, uploadImage } from '../../lib/api'
 import { PHOTO } from '../../lib/imagem'
 import { getSupabaseClient } from '../../lib/supabase'
 
@@ -104,6 +104,17 @@ export async function createAccount({ name, email, password, asProvider, cpf }: 
 // Encerra só a sessão deste aparelho
 export async function signOut() {
   await auth().signOut({ scope: 'local' })
+}
+
+// Apaga a conta para sempre: primeiro as fotos da pasta dela no Storage (o banco não
+// consegue), depois a conta, que leva junto perfil, serviços, contatos e avaliações.
+export async function deleteAccount() {
+  const { id, isAdmin } = await rpc<AccountData>('minha_conta')
+  // O banco recusa; aqui só evita apagar as fotos antes da recusa
+  if (isAdmin) throw new ApiError(403, 'A conta da administração não pode ser apagada pelo app.')
+  await removeFolder(id)
+  await rpc('apagar_conta')
+  await auth().signOut({ scope: 'local' }).catch(() => {})
 }
 
 // Conta da sessão guardada nesta aba, se ainda valer
