@@ -190,6 +190,8 @@ describe('Inicio: profissionais', () => {
     await openTask('Instalar chuveiro')
     await userEvent.click(sheet().getByRole('button', { name: /Carlos Henrique/ }))
     await userEvent.click(sheet().getByRole('button', { name: 'Falar com Carlos no WhatsApp' }))
+    expect(open).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir conversa' }))
     expect(open).toHaveBeenCalledWith(expect.stringMatching(/^https:\/\/wa\.me\/5562988887777\?text=/), '_blank', 'noopener,noreferrer')
     await expectContact('Instalar chuveiro')
   })
@@ -201,8 +203,27 @@ describe('Inicio: profissionais', () => {
     await renderInicio({ isLoggedIn: true, userName: 'Beatriz Rocha' })
     await openTask('Instalar chuveiro')
     await userEvent.click(sheet().getByRole('button', { name: 'Falar com Carlos no WhatsApp' }))
+    expect(open).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir conversa' }))
     expect(open).toHaveBeenCalledWith(expect.stringMatching(/^https:\/\/wa\.me\/5562988887777\?text=/), '_blank', 'noopener,noreferrer')
     await expectContact('Instalar chuveiro')
+  })
+
+  it('cancelar a confirmação não abre o WhatsApp nem conta o contato', async () => {
+    await dbExec(`update public.prestadores set whatsapp = '62988887777' where id = 'p1'`)
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    await loginAs('beatriz@exemplo.com')
+    await renderInicio({ isLoggedIn: true, userName: 'Beatriz Rocha' })
+    await openTask('Instalar chuveiro')
+    await userEvent.click(sheet().getByRole('button', { name: 'Falar com Carlos no WhatsApp' }))
+    expect(screen.getByRole('dialog', { name: 'Falar com Carlos no WhatsApp?' })).toHaveTextContent(
+      'mensagem pronta sobre "Instalar chuveiro"',
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+    expect(screen.queryByRole('dialog', { name: 'Falar com Carlos no WhatsApp?' })).not.toBeInTheDocument()
+    expect(open).not.toHaveBeenCalled()
+    expect(await dbRows('select id from public.contatos where cliente_id = $1', SAMPLE_IDS.beatriz)).toEqual([])
   })
 
   it('sem login a lista mostra o WhatsApp desfocado e o toque leva ao login', async () => {

@@ -4,6 +4,7 @@ import { BlurredPrice, LoginBar } from '../components/LoginBar'
 import { PageBar } from '../components/PageBar'
 import { Rating } from '../components/Rating'
 import { Avatar } from '../components/Avatar'
+import { WhatsappConfirm } from '../components/WhatsappConfirm'
 import { LoadError, Loading } from '../components/Status'
 import {
   fetchMyReview,
@@ -12,7 +13,6 @@ import {
   perUnit,
   professionIdsOf,
   saveReview,
-  talkOnWhatsapp,
   type MyReview,
   type Professional,
   type Review,
@@ -32,6 +32,7 @@ type PerfilPrestadorProps = {
 // Rascunho só aparece para o próprio prestador: quem decide é o servidor
 export function PerfilPrestador({ id, isLoggedIn, onLogin }: PerfilPrestadorProps) {
   const [noWhatsapp, setNoWhatsapp] = useState(false)
+  const [confirming, setConfirming] = useState(false)
   const profile = useApi(
     () => Promise.all([fetchProfessional(id), fetchReviews(id), fetchCatalog()]),
     id,
@@ -198,14 +199,22 @@ export function PerfilPrestador({ id, isLoggedIn, onLogin }: PerfilPrestadorProp
           disabled={!isLoggedIn}
           aria-describedby={isLoggedIn ? undefined : 'contact-locked'}
           onClick={() => {
-            // Com o contato gravado, o formulário de avaliação aparece
-            if (pro.whatsapp) talkOnWhatsapp(pro).then((saved) => saved && mine.reload())
+            if (pro.whatsapp) setConfirming(true)
             else setNoWhatsapp(true)
           }}
         >
           Falar com {proFirstName} no WhatsApp
         </button>
       </div>
+
+      {confirming && (
+        <WhatsappConfirm
+          target={{ pro }}
+          onClose={() => setConfirming(false)}
+          // Com o contato gravado, o formulário de avaliação aparece
+          onContacted={mine.reload}
+        />
+      )}
     </div>
   )
 }

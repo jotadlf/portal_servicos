@@ -1103,6 +1103,95 @@ a.icon-button {
   color: var(--grafite);
 }
 
+/* Confirmação antes de abrir o WhatsApp: cartão pequeno no centro, por cima da folha */
+.confirm-dialog {
+  width: min(100% - 2 * var(--gutter), 24rem);
+  max-width: none;
+  margin: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 20px;
+  color: var(--grafite);
+  background: var(--superficie);
+  box-shadow: 0 16px 48px rgb(29 43 42 / 0.22);
+  opacity: 0;
+  transform: scale(0.96);
+  transition:
+    opacity 160ms ease-out,
+    transform 200ms var(--ease-suave),
+    overlay 200ms allow-discrete,
+    display 200ms allow-discrete;
+}
+
+.confirm-dialog[open] {
+  opacity: 1;
+  transform: none;
+}
+
+@starting-style {
+  .confirm-dialog[open] {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+.confirm-dialog::backdrop {
+  background: rgb(29 43 42 / 0.35);
+}
+
+.confirm-body {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  padding: 20px var(--gutter) var(--gutter);
+  text-align: center;
+}
+
+.confirm-body h2 {
+  margin: 0;
+  font-family: var(--font-titulo);
+  font-size: 1.25rem;
+}
+
+.confirm-body p {
+  margin: 0;
+  color: var(--cimento);
+  font-size: 0.9375rem;
+}
+
+.confirm-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  background: #e4f6ea;
+}
+
+.confirm-icon .whatsapp-icon {
+  width: 26px;
+  height: 26px;
+}
+
+.confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.confirm-actions .clear-filters {
+  height: 48px;
+  justify-content: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .confirm-dialog {
+    transition: none;
+  }
+}
+
 /* Avaliar o prestador: estrelas de toque (radios escondidos) e comentário */
 .review-form {
   display: grid;

@@ -6,12 +6,12 @@ import { BottomMenu } from '../components/BottomMenu'
 import { BlurredPrice, LoginBar } from '../components/LoginBar'
 import { Rating } from '../components/Rating'
 import { LoadError, Loading } from '../components/Status'
+import { WhatsappConfirm, type WhatsappTarget } from '../components/WhatsappConfirm'
 import { WhatsappIcon } from '../components/WhatsappIcon'
 import {
   fetchProfessionalsFor,
   perUnit,
   serviceFor,
-  talkOnWhatsapp,
   type OfferedService,
   type Professional,
 } from '../features/profissionais/prestadores'
@@ -36,6 +36,8 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [selectedPro, setSelectedPro] = useState<Professional | null>(null)
   const [noWhatsapp, setNoWhatsapp] = useState(false)
+  // Confirmação antes de abrir o WhatsApp; o contato só conta ao confirmar
+  const [whatsappTarget, setWhatsappTarget] = useState<WhatsappTarget | null>(null)
   // Busca por nome e ordem da lista de profissionais do serviço aberto
   const [proQuery, setProQuery] = useState('')
   const [proSort, setProSort] = useState<ProSort>('avaliacao')
@@ -467,7 +469,7 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
                               type="button"
                               className="pro-whatsapp"
                               aria-label={`Falar com ${firstName(pro.name)} no WhatsApp`}
-                              onClick={() => talkOnWhatsapp(pro, selectedTask.title)}
+                              onClick={() => setWhatsappTarget({ pro, task: selectedTask.title })}
                             >
                               <WhatsappIcon />
                               {formatPhone(pro.whatsapp)}
@@ -587,7 +589,7 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
               aria-describedby={isLoggedIn ? undefined : 'contact-locked'}
               onClick={() => {
                 if (selectedPro.whatsapp) {
-                  talkOnWhatsapp(selectedPro, selectedTask.title)
+                  setWhatsappTarget({ pro: selectedPro, task: selectedTask.title })
                 } else {
                   setNoWhatsapp(true)
                 }
@@ -598,6 +600,8 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
           </div>
         )}
       </dialog>
+
+      {whatsappTarget && <WhatsappConfirm target={whatsappTarget} onClose={() => setWhatsappTarget(null)} />}
 
       <BottomMenu
         current="inicio"

@@ -58,6 +58,7 @@ describe('PerfilPrestador', () => {
     await renderPerfil({ isLoggedIn: true })
 
     await userEvent.click(screen.getByRole('button', { name: 'Falar com Carlos no WhatsApp' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir conversa' }))
     expect(open).toHaveBeenCalledWith(
       expect.stringMatching(/^https:\/\/wa\.me\/5562999998888\?text=/),
       '_blank',
@@ -81,6 +82,7 @@ describe('PerfilPrestador', () => {
     expect(await screen.findByText(/Depois de falar com Carlos pelo WhatsApp/)).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Falar com Carlos no WhatsApp' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir conversa' }))
     expect(await screen.findByRole('group', { name: 'Como foi o serviço com Carlos?' })).toBeInTheDocument()
     const saved = await dbRows(
       `select cliente, servico, bairro from public.contatos where prestador_id = 'p1' and cliente_id = $1`,
