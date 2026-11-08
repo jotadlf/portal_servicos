@@ -11,6 +11,7 @@ import {
   fetchProfessionalsFor,
   perUnit,
   serviceFor,
+  talkOnWhatsapp,
   type OfferedService,
   type Professional,
 } from '../features/profissionais/prestadores'
@@ -19,7 +20,7 @@ import { useApi } from '../hooks/useApi'
 import { routes } from '../hooks/useHashRoute'
 import { firstName, formatPrice, greeting, normalize } from '../lib/format'
 import { withTransition } from '../lib/transition'
-import { contactMessage, formatPhone, openWhatsapp } from '../lib/whatsapp'
+import { formatPhone } from '../lib/whatsapp'
 
 type InicioProps = {
   isLoggedIn: boolean
@@ -466,12 +467,7 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
                               type="button"
                               className="pro-whatsapp"
                               aria-label={`Falar com ${firstName(pro.name)} no WhatsApp`}
-                              onClick={() =>
-                                openWhatsapp(
-                                  pro.whatsapp!,
-                                  contactMessage(firstName(pro.name), selectedTask.title),
-                                )
-                              }
+                              onClick={() => talkOnWhatsapp(pro, selectedTask.title)}
                             >
                               <WhatsappIcon />
                               {formatPhone(pro.whatsapp)}
@@ -590,9 +586,8 @@ export function Inicio({ isLoggedIn, isAdmin, userName, onLogin, onLogout }: Ini
               disabled={!isLoggedIn}
               aria-describedby={isLoggedIn ? undefined : 'contact-locked'}
               onClick={() => {
-                // TODO: registrar o contato no Supabase para aparecer em "Contatos" do prestador.
                 if (selectedPro.whatsapp) {
-                  openWhatsapp(selectedPro.whatsapp, contactMessage(proFirstName, selectedTask.title))
+                  talkOnWhatsapp(selectedPro, selectedTask.title)
                 } else {
                   setNoWhatsapp(true)
                 }

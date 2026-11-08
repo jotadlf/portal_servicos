@@ -738,7 +738,7 @@ function Contatos({
               <span className="review-date">{formatDate(contact.date)}</span>
             </div>
             <p className="contact-task">
-              {contact.task}, {contact.neighborhood}
+              {[contact.task, contact.neighborhood].filter(Boolean).join(', ')}
             </p>
             {contact.message && <p>{contact.message}</p>}
             {!contact.answered && (

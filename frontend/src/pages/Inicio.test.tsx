@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { dbExec, loginAs } from '../test/supabase'
+import { dbExec, dbRows, loginAs, SAMPLE_IDS } from '../test/supabase'
 import { Inicio } from './Inicio'
 
 type Props = Partial<Parameters<typeof Inicio>[0]>
@@ -15,6 +15,17 @@ async function renderInicio(props: Props = {}) {
 }
 
 const sheet = () => within(document.querySelector('dialog')!)
+
+// O toque no WhatsApp grava o contato da Beatriz com o serviço buscado
+async function expectContact(task: string) {
+  await vi.waitFor(async () => {
+    const saved = await dbRows(
+      `select servico from public.contatos where prestador_id = 'p1' and cliente_id = $1`,
+      SAMPLE_IDS.beatriz,
+    )
+    expect(saved).toEqual([{ servico: task }])
+  })
+}
 
 async function openTask(title: string) {
   await userEvent.type(screen.getByRole('searchbox', { name: 'Buscar serviço' }), title)
@@ -180,6 +191,7 @@ describe('Inicio: profissionais', () => {
     await userEvent.click(sheet().getByRole('button', { name: /Carlos Henrique/ }))
     await userEvent.click(sheet().getByRole('button', { name: 'Falar com Carlos no WhatsApp' }))
     expect(open).toHaveBeenCalledWith(expect.stringMatching(/^https:\/\/wa\.me\/5562988887777\?text=/), '_blank', 'noopener,noreferrer')
+    await expectContact('Instalar chuveiro')
   })
 
   it('abre o WhatsApp direto da lista, sem abrir o perfil', async () => {
@@ -190,6 +202,7 @@ describe('Inicio: profissionais', () => {
     await openTask('Instalar chuveiro')
     await userEvent.click(sheet().getByRole('button', { name: 'Falar com Carlos no WhatsApp' }))
     expect(open).toHaveBeenCalledWith(expect.stringMatching(/^https:\/\/wa\.me\/5562988887777\?text=/), '_blank', 'noopener,noreferrer')
+    await expectContact('Instalar chuveiro')
   })
 
   it('sem login a lista mostra o WhatsApp desfocado e o toque leva ao login', async () => {

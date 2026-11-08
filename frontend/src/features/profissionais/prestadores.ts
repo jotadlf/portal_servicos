@@ -1,5 +1,7 @@
 // Prestadores, serviços, avaliações e contatos, lidos e gravados pelas funções do banco.
 import { imageUrl, rpc } from '../../lib/api'
+import { firstName } from '../../lib/format'
+import { contactMessage, openWhatsapp } from '../../lib/whatsapp'
 import type { PlanId } from '../conta/plano'
 
 // Serviço oferecido e o preço médio informado pelo profissional (em reais).
@@ -113,6 +115,35 @@ export function saveAbout(about: string) {
 // Sem plano nem pagamento: só a administração (o banco recusa para os demais)
 export function publishProfile(plan?: PlanId, method?: 'pix' | 'cartao') {
   return rpc<{ status: 'publicado'; plan?: PlanId; trialEndsAt?: string }>('publicar', { plan, method })
+}
+
+// Abre a conversa e grava o contato na aba "Contatos" do prestador. A janela abre antes,
+// ainda no toque (o navegador bloqueia janela aberta depois de esperar a rede). Se a
+// gravação falhar, a conversa segue: o contato só não aparece para o prestador.
+export function talkOnWhatsapp(pro: Pick<Professional, 'id' | 'name' | 'whatsapp'>, task?: string) {
+  if (!pro.whatsapp) return Promise.resolve(false)
+  openWhatsapp(pro.whatsapp, contactMessage(firstName(pro.name), task))
+  return rpc<void>('registrar_contato', { id: pro.id, task }).then(
+    () => true,
+    () => false,
+  )
+}
+
+export type MyReview = {
+  // O próprio prestador vendo o perfil
+  own: boolean
+  // Só quem já falou com o prestador pelo WhatsApp (e não é o próprio)
+  canReview: boolean
+  review: Review | null
+}
+
+export function fetchMyReview(id: string) {
+  return rpc<MyReview>('minha_avaliacao', { id })
+}
+
+// Dá ou refaz a avaliação; volta com a nota nova do prestador
+export function saveReview(id: string, rating: number, comment: string) {
+  return rpc<{ review: Review; rating: number; reviews: number }>('avaliar', { id, rating, comment })
 }
 
 export function fetchContacts() {

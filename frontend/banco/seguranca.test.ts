@@ -99,7 +99,7 @@ describe('Endereços e erros', () => {
 
   it('anônimo não chama nada que exige login', async () => {
     const client = newClient()
-    for (const fn of ['meu_prestador', 'salvar_servicos', 'publicar', 'meus_contatos', 'marcar_respondido']) {
+    for (const fn of ['meu_prestador', 'salvar_servicos', 'publicar', 'meus_contatos', 'marcar_respondido', 'registrar_contato', 'minha_avaliacao', 'avaliar']) {
       expect((await call(fn, {}, client)).status).toBe(401)
     }
   })

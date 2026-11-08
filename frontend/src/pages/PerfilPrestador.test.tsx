@@ -1,8 +1,16 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { dbExec, loginAs, newAccount } from '../test/supabase'
+import { dbExec, dbRow, dbRows, loginAs, newAccount, SAMPLE_IDS } from '../test/supabase'
 import { PerfilPrestador } from './PerfilPrestador'
+
+// Beatriz já tocou em "Falar no WhatsApp" do Carlos
+const contactedByBeatriz = () =>
+  dbExec(
+    `insert into public.contatos (prestador_id, cliente_id, cliente, servico, bairro, data)
+     values ('p1', $1, 'Beatriz Rocha', 'Instalar chuveiro', 'Setor Marista', current_date)`,
+    SAMPLE_IDS.beatriz,
+  )
 
 async function renderPerfil(props: Partial<Parameters<typeof PerfilPrestador>[0]> = {}) {
   const onLogin = vi.fn()
@@ -63,6 +71,64 @@ describe('PerfilPrestador', () => {
     await renderPerfil({ isLoggedIn: true })
     await userEvent.click(screen.getByRole('button', { name: 'Falar com Carlos no WhatsApp' }))
     expect(screen.getByText('Carlos ainda não cadastrou o WhatsApp.')).toBeInTheDocument()
+  })
+
+  it('o toque no WhatsApp grava o contato e libera a avaliação', async () => {
+    await dbExec(`update public.prestadores set whatsapp = '62999998888' where id = 'p1'`)
+    vi.spyOn(window, 'open').mockImplementation(() => null)
+    await loginAs('beatriz@exemplo.com')
+    await renderPerfil({ isLoggedIn: true })
+    expect(await screen.findByText(/Depois de falar com Carlos pelo WhatsApp/)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Falar com Carlos no WhatsApp' }))
+    expect(await screen.findByRole('group', { name: 'Como foi o serviço com Carlos?' })).toBeInTheDocument()
+    const saved = await dbRows(
+      `select cliente, servico, bairro from public.contatos where prestador_id = 'p1' and cliente_id = $1`,
+      SAMPLE_IDS.beatriz,
+    )
+    expect(saved).toEqual([{ cliente: 'Beatriz Rocha', servico: '', bairro: 'Setor Marista' }])
+  })
+
+  it('avaliar grava a nota, mostra o comentário e atualiza a média', async () => {
+    await contactedByBeatriz()
+    await loginAs('beatriz@exemplo.com')
+    await renderPerfil({ isLoggedIn: true })
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Enviar avaliação' }))
+    expect(screen.getByText('Escolha de 1 a 5 estrelas.')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('radio', { name: '4 estrelas' }))
+    await userEvent.type(screen.getByRole('textbox', { name: 'Comentário (opcional)' }), 'Chegou cedo e resolveu.')
+    await userEvent.click(screen.getByRole('button', { name: 'Enviar avaliação' }))
+
+    expect(await screen.findByText('Avaliação enviada. Obrigado!')).toBeInTheDocument()
+    expect(screen.getByText('Chegou cedo e resolveu.', { selector: 'p' })).toBeInTheDocument()
+    expect(screen.getByText(/133 avaliações/)).toBeInTheDocument()
+    const review = await dbRow(`select autor, nota from public.avaliacoes where cliente_id = $1`, SAMPLE_IDS.beatriz)
+    expect(review).toEqual({ autor: 'Beatriz', nota: 4 })
+    expect(screen.getByRole('button', { name: 'Atualizar avaliação' })).toBeInTheDocument()
+  })
+
+  it('quem já avaliou vê a própria avaliação para refazer', async () => {
+    await contactedByBeatriz()
+    await dbExec(
+      `insert into public.avaliacoes (prestador_id, cliente_id, autor, nota, comentario, data)
+       values ('p1', $1, 'Beatriz', 3, 'Demorou um pouco.', current_date)`,
+      SAMPLE_IDS.beatriz,
+    )
+    await loginAs('beatriz@exemplo.com')
+    await renderPerfil({ isLoggedIn: true })
+    expect(await screen.findByRole('group', { name: 'Sua avaliação' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: '3 estrelas' })).toBeChecked()
+    expect(screen.getByRole('textbox', { name: 'Comentário (opcional)' })).toHaveValue('Demorou um pouco.')
+  })
+
+  it('o próprio prestador não vê o convite para avaliar', async () => {
+    await loginAs('carlos@exemplo.com')
+    await renderPerfil({ isLoggedIn: true })
+    await screen.findByText('Fernanda')
+    await vi.waitFor(() => expect(document.querySelector('.review-form')).toBeNull())
+    expect(screen.queryByText(/Depois de falar com/)).not.toBeInTheDocument()
   })
 
   it('rascunho só aparece para o próprio prestador', async () => {

@@ -1103,6 +1103,58 @@ a.icon-button {
   color: var(--grafite);
 }
 
+/* Avaliar o prestador: estrelas de toque (radios escondidos) e comentário */
+.review-form {
+  display: grid;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--superficie);
+}
+
+.star-input {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.star-input legend {
+  width: 100%;
+  margin-bottom: 4px;
+  padding: 0;
+  font-weight: 600;
+}
+
+.star-input label {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  color: var(--cimento);
+  cursor: pointer;
+}
+
+.star-input label svg {
+  fill: none;
+}
+
+.star-input label.on {
+  color: #c99a06;
+}
+
+.star-input label.on svg {
+  fill: var(--metro);
+}
+
+.star-input label:has(input:focus-visible) {
+  outline: 3px solid var(--azulejo);
+  outline-offset: 2px;
+}
+
 .badge {
   padding: 1px 8px;
   border-radius: 999px;

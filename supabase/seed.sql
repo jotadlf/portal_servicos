@@ -151,6 +151,9 @@ begin
     ('p24', 'chaveiro', 'Fazer cópia de chave', 12, 0),
     ('p24', 'chaveiro', 'Trocar fechadura', 140, 1);
 
+  -- Nota e total de exemplo já vêm prontos; a soma parte deles (as avaliações do app somam nela)
+  update public.prestadores set soma_notas = nota * total_avaliacoes;
+
   insert into public.avaliacoes (id, prestador_id, autor, nota, comentario, data) values
     ('r1', 'p1', 'Fernanda', 5, 'Instalou o chuveiro rapidinho e explicou tudo. Muito educado.', '2026-10-12'),
     ('r2', 'p1', 'Roberto', 5, 'Chegou no horário combinado e o preço foi o que tinha falado.', '2026-10-03'),

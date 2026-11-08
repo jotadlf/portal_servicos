@@ -90,7 +90,7 @@ function DeleteAccount({ isProvider, onDeleted }: { isProvider: boolean; onDelet
           <p className="notice notice-danger">
             {isProvider
               ? 'Seu perfil público, seus serviços, os contatos e as avaliações recebidas serão apagados junto. '
-              : 'Seus dados e sua foto serão apagados. '}
+              : 'Seus dados, sua foto e as avaliações que você deu serão apagados. '}
             Isso não pode ser desfeito.
           </p>
           <div aria-live="polite">{error && <p className="form-error">{error}</p>}</div>
