@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { Check, Pencil, Plus, Star, Trash2, X } from 'lucide-react'
 import { BottomMenu } from '../components/BottomMenu'
+import { Field } from '../components/Field'
 import { LoginBar } from '../components/LoginBar'
 import { PlanOffer } from '../components/PlanOffer'
 import { Rating } from '../components/Rating'
@@ -26,7 +27,8 @@ import {
 import { fetchCatalog, findProfession, type Profession } from '../features/servicos/catalogo'
 import { useApi } from '../hooks/useApi'
 import { routes } from '../hooks/useHashRoute'
-import { errorMessage } from '../lib/api'
+import { ApiError, errorMessage } from '../lib/api'
+import { formatCpf, isValidCpf } from '../lib/cpf'
 import { formatDate, formatPrice, formatRating, normalize } from '../lib/format'
 
 const tabs = [
@@ -46,14 +48,41 @@ type ServicosProps = {
 export function Servicos({ account, onLogin, onAccountChange }: ServicosProps) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [cpf, setCpf] = useState('')
+  const [cpfError, setCpfError] = useState('')
+  // A administração usa o portal sem plano e não precisa de CPF
+  const needsCpf = !account?.isAdmin
+  const cpfDigits = cpf.replace(/\D/g, '')
 
-  async function startOffering() {
+  function checkCpf() {
+    if (!needsCpf) return ''
+    if (!cpfDigits) return 'Informe seu CPF.'
+    return isValidCpf(cpfDigits) ? '' : 'Informe um CPF válido.'
+  }
+
+  async function startOffering(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (busy) return
+    const problem = checkCpf()
+    setCpfError(problem)
+    if (problem) {
+      event.currentTarget.querySelector<HTMLInputElement>('input[name="cpf"]')?.focus()
+      return
+    }
+    const form = event.currentTarget
     setBusy(true)
     setError('')
     try {
-      onAccountChange(await becomeProvider())
+      onAccountChange(await becomeProvider(needsCpf ? cpfDigits : undefined))
     } catch (failure) {
-      setError(errorMessage(failure))
+      // O banco diz se o CPF já é de outra conta
+      const fieldError = failure instanceof ApiError ? failure.fields.cpf : undefined
+      if (fieldError) {
+        setCpfError(fieldError)
+        form.querySelector<HTMLInputElement>('input[name="cpf"]')?.focus()
+      } else {
+        setError(errorMessage(failure))
+      }
       setBusy(false)
     }
   }
@@ -77,12 +106,32 @@ export function Servicos({ account, onLogin, onAccountChange }: ServicosProps) {
               <PlanOffer />
             )}
             {account ? (
-              <>
+              <form className="become-provider" onSubmit={startOffering} noValidate>
+                {needsCpf && (
+                  <Field
+                    label="CPF"
+                    name="cpf"
+                    required
+                    inputMode="numeric"
+                    autoComplete="off"
+                    placeholder="000.000.000-00"
+                    value={cpf}
+                    help="Pedimos o CPF de quem oferece serviços. Ele não aparece no seu perfil e não pode ser trocado depois."
+                    error={cpfError || undefined}
+                    onBlur={() => {
+                      if (cpfDigits) setCpfError(checkCpf())
+                    }}
+                    onChange={(e) => {
+                      setCpf(formatCpf(e.target.value))
+                      setCpfError('')
+                    }}
+                  />
+                )}
                 <div aria-live="polite">{error && <p className="form-error">{error}</p>}</div>
-                <button type="button" className="primary" disabled={busy} onClick={startOffering}>
+                <button type="submit" className="primary" disabled={busy}>
                   {busy ? 'Preparando…' : 'Quero oferecer serviços'}
                 </button>
-              </>
+              </form>
             ) : (
               <LoginBar message="Entre para cadastrar seus serviços." onLogin={onLogin} />
             )}

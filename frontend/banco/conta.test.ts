@@ -1,6 +1,19 @@
 // @vitest-environment node
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
-import { call, closeDb, newClient, PNG_1PX, resetDb, row, SAMPLE_IDS, sendPhoto, signIn, signUp, VALID_CPFS } from './ajuda.ts'
+import {
+  call,
+  closeDb,
+  exec,
+  newClient,
+  PNG_1PX,
+  resetDb,
+  row,
+  SAMPLE_IDS,
+  sendPhoto,
+  signIn,
+  signUp,
+  VALID_CPFS,
+} from './ajuda.ts'
 
 beforeEach(resetDb)
 afterAll(closeDb)
@@ -185,18 +198,73 @@ describe('Perfil: foto', () => {
 })
 
 describe('Perfil: virar prestador', () => {
+  const prestadores = async (id: string) =>
+    (await row('select count(*) as n from public.prestadores where conta_id = $1', id))!.n
+
   it('cria um único perfil de prestador, mesmo chamando duas vezes', async () => {
     const { client, account } = await signUp()
-    await call('virar_prestador', undefined, client)
-    const second = await call('virar_prestador', undefined, client)
+    await call('virar_prestador', { cpf: VALID_CPFS[0] }, client)
+    const second = await call('virar_prestador', { cpf: VALID_CPFS[1] }, client)
     expect(second.body.professionalId).toBeDefined()
-    expect((await row('select count(*) as n from public.prestadores where conta_id = $1', account.id))!.n).toBe(1)
+    expect(await prestadores(account.id)).toBe(1)
+    // A segunda chamada não troca o CPF gravado na primeira
+    expect((await profile(account.id))!.cpf).toBe(VALID_CPFS[0])
   })
 
-  it('PONTO DE ATENÇÃO: vira prestador sem informar CPF', async () => {
+  it('grava o CPF só com dígitos', async () => {
     const { client, account } = await signUp()
-    expect((await call('virar_prestador', undefined, client)).status).toBe(200)
+    expect((await call('virar_prestador', { cpf: '529.982.247-25' }, client)).status).toBe(200)
+    expect((await profile(account.id))!.cpf).toBe('52998224725')
+  })
+
+  it.each([
+    [undefined, 'Informe seu CPF.'],
+    ['', 'Informe seu CPF.'],
+    ['111.111.111-11', 'Informe um CPF válido.'],
+    ['529.982.247-26', 'Informe um CPF válido.'],
+  ])('recusa CPF %j sem criar o perfil', async (cpf, message) => {
+    const { client, account } = await signUp()
+    const response = await call('virar_prestador', { cpf }, client)
+    expect(response.status).toBe(400)
+    expect(response.body.fields).toEqual({ cpf: message })
+    expect(await prestadores(account.id)).toBe(0)
     expect((await profile(account.id))!.cpf).toBeNull()
+  })
+
+  it('recusa CPF que já é de outra conta', async () => {
+    await signUp({ asProvider: true, cpf: VALID_CPFS[0] })
+    const { client, account } = await signUp()
+    const response = await call('virar_prestador', { cpf: VALID_CPFS[0] }, client)
+    expect(response.status).toBe(409)
+    expect(response.body.fields).toEqual({ cpf: 'Já existe uma conta de prestador com esse CPF.' })
+    expect(await prestadores(account.id)).toBe(0)
+  })
+
+  it('a administração vira prestador sem CPF', async () => {
+    const { client, account } = await signUp()
+    await exec('update public.contas set admin = true where id = $1', account.id)
+    expect((await call('virar_prestador', undefined, client)).status).toBe(200)
+    expect(await prestadores(account.id)).toBe(1)
+    expect((await profile(account.id))!.cpf).toBeNull()
+  })
+})
+
+describe('Perfil: CPF fixo', () => {
+  it('depois de gravado, o CPF não muda nem direto no banco', async () => {
+    const { account } = await signUp({ asProvider: true, cpf: VALID_CPFS[0] })
+    await expect(exec('update public.contas set cpf = $1 where id = $2', VALID_CPFS[1], account.id)).rejects.toThrow(
+      'O CPF não pode ser alterado.',
+    )
+    await expect(exec('update public.contas set cpf = null where id = $1', account.id)).rejects.toThrow(
+      'O CPF não pode ser alterado.',
+    )
+    expect((await profile(account.id))!.cpf).toBe(VALID_CPFS[0])
+  })
+
+  it('salvar o perfil não mexe no CPF', async () => {
+    const { client, account } = await signUp({ asProvider: true, cpf: VALID_CPFS[0] })
+    expect((await call('salvar_conta', { ...fullProfile, cpf: VALID_CPFS[1] }, client)).status).toBe(200)
+    expect((await profile(account.id))!.cpf).toBe(VALID_CPFS[0])
   })
 })
 

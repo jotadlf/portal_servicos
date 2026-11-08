@@ -130,7 +130,8 @@ export async function uploadPhoto(file: File) {
   return toAccount(updated)
 }
 
-// Qualquer pessoa pode passar a oferecer serviços a qualquer momento
-export async function becomeProvider() {
-  return toAccount(await rpc<AccountData>('virar_prestador'))
+// Qualquer pessoa pode passar a oferecer serviços a qualquer momento, informando o CPF
+// (a administração não precisa). Depois de gravado, o CPF não muda.
+export async function becomeProvider(cpf?: string) {
+  return toAccount(await rpc<AccountData>('virar_prestador', { cpf }))
 }
