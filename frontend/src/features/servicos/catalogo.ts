@@ -12,7 +12,7 @@ import {
   Zap,
   type LucideIcon,
 } from 'lucide-react'
-import { imageUrl, rpc, uploadImage } from '../../lib/api'
+import { imageUrl, removeImage, rpc, uploadImage } from '../../lib/api'
 import { ICON } from '../../lib/imagem'
 import eletricistaImg from '../../assets/profissoes/eletricista.png'
 import faxineiraImg from '../../assets/profissoes/faxineira.png'
@@ -31,6 +31,8 @@ export type Profession = {
   // Ícone 3D colorido usado nos cards de profissão. Modalidade nova pode vir sem:
   // aí o card mostra o ícone de linha.
   image?: string
+  // Caminho da imagem enviada no Storage, para apagá-la junto com a modalidade
+  imagePath?: string
   tasks: string[]
 }
 
@@ -52,7 +54,12 @@ type ProfessionData = { id: string; name: string; tasks: string[]; image?: strin
 function withVisual(data: ProfessionData): Profession {
   const visual = visuals[data.id]
   // A imagem enviada vem do banco como caminho no Storage
-  return { ...data, icon: visual?.icon ?? Wrench, image: imageUrl(data.image) ?? visual?.image }
+  return {
+    ...data,
+    icon: visual?.icon ?? Wrench,
+    image: imageUrl(data.image) ?? visual?.image,
+    imagePath: data.image,
+  }
 }
 
 export async function fetchCatalog() {
@@ -83,7 +90,9 @@ export async function addProfession({ name, tasks, image }: { name: string; task
   return withVisual(data)
 }
 
-// Os serviços da modalidade saem junto, de todos os perfis
-export function removeProfession(id: string) {
-  return rpc<void>('remover_modalidade', { id })
+// Os serviços da modalidade saem junto, de todos os perfis. A imagem enviada sai do Storage
+// depois (o banco não apaga arquivo); se falhar, ela só fica sobrando.
+export async function removeProfession(profession: Pick<Profession, 'id' | 'imagePath'>) {
+  await rpc<void>('remover_modalidade', { id: profession.id })
+  await removeImage(profession.imagePath)
 }

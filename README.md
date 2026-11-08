@@ -70,7 +70,7 @@ npm run test:e2e                  # navegador de verdade (computador e celular)
 Cada teste volta o banco aos dados de exemplo (`recriar_dados_exemplo()`, do `seed.sql`). O e2e se
 recusa a rodar contra um Supabase que não seja o local. No GitHub Actions tudo isso roda sozinho.
 
-O relatório [`docs/relatorio-testes.md`](docs/relatorio-testes.md) é da versão anterior, com SQLite.
+O relatório [`docs/relatorio-testes.md`](docs/relatorio-testes.md) resume o resultado do último CI, o que mudou desde o protótipo com SQLite e os pontos em aberto.
 
 ## Verificar produção
 

@@ -103,6 +103,20 @@ describe('Admin: modalidades gravadas no banco', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Remover Eletricista' })).not.toBeInTheDocument())
     expect((await dbRow(`select count(*) as n from public.servicos where modalidade_id = 'eletricista'`))?.n).toBe(0)
   })
+
+  it('remover a modalidade apaga a imagem dela do Storage', async () => {
+    await openTab('Modalidades')
+    await userEvent.upload(await screen.findByLabelText('Imagem da modalidade'), PNG_FILE())
+    await fill('Marceneiro', 'Montar móvel')
+    await screen.findByText(/^Marceneiro foi adicionada\./)
+    const { imagem } = (await dbRow(`select imagem from public.modalidades where id = 'marceneiro'`))!
+    const stored = `select count(*) as n from storage.objects where bucket_id = 'fotos' and name = $1`
+    expect((await dbRow(stored, imagem))?.n).toBe(1)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Remover Marceneiro' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Remover' }))
+    await waitFor(async () => expect((await dbRow(stored, imagem))?.n).toBe(0))
+  })
 })
 
 describe('Admin: plano e pagamentos gravados no banco', () => {

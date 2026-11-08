@@ -627,8 +627,9 @@ button {
   display: grid;
   flex: none;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  /* 44 px: o mínimo recomendado para alvo de toque */
+  width: 44px;
+  height: 44px;
   border: 0;
   border-radius: 999px;
   background: var(--reboco);
@@ -1351,17 +1352,18 @@ a.icon-button {
 }
 
 .password-input input {
-  padding-right: 48px;
+  padding-right: 50px;
 }
 
+/* Sem fundo: passar um pouco da altura do campo não aparece, só aumenta a área de toque */
 .password-toggle {
   position: absolute;
   top: 50%;
-  right: 4px;
+  right: 2px;
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border: 0;
   border-radius: 10px;
   color: var(--cimento);
@@ -1444,8 +1446,8 @@ a.icon-button {
 }
 
 .line-actions .icon-button {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   color: var(--cimento);
   background: none;
 }

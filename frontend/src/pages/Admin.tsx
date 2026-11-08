@@ -199,7 +199,7 @@ function ModalidadeItem({ profession, services, providers, onRemoved }: Modalida
     setBusy(true)
     setError('')
     try {
-      await removeProfession(profession.id)
+      await removeProfession(profession)
       onRemoved()
     } catch (failure) {
       setError(errorMessage(failure))
