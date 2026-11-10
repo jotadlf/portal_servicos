@@ -12,6 +12,7 @@ import {
   signIn,
   signUp,
   ADULT_BIRTH_DATE,
+  TERMS_VERSION,
   uniqueEmail,
   VALID_CPFS,
 } from './ajuda.ts'
@@ -131,6 +132,9 @@ describe('Cadastro real: dados gravados no banco', () => {
     ['data de mais de 120 anos', { ...provider, birthDate: `${thisYear - 121}-01-01` }, 'birthDate', /data válida/],
     ['data que não é texto', { ...provider, birthDate: 19900325 }, 'birthDate', /formato inválido/],
     ['menor de 18 anos', { ...provider, birthDate: `${thisYear - 17}-01-01` }, 'birthDate', /18 anos ou mais/],
+    ['sem aceitar os termos', { termsVersion: undefined }, 'terms', 'Para criar a conta, aceite os termos de uso.'],
+    ['aceite de uma versão antiga dos termos', { termsVersion: '2020-01-01' }, 'terms', /aceite os termos/],
+    ['aceite que não é texto', { termsVersion: true }, 'terms', /aceite os termos/],
   ])('recusa %s', async (_, data, field, message) => {
     const response = await cadastro({ name: 'Ana Lima', email: uniqueEmail(), password: 'segredo1', ...data })
     expect(response.status).toBe(400)
@@ -151,6 +155,25 @@ describe('Cadastro real: dados gravados no banco', () => {
       cpf: null,
       nascimento: null,
     })
+  })
+
+  it('guarda a versão dos termos aceita e quando', async () => {
+    const before = Date.now()
+    const { account } = await signUp()
+    const saved = await row('select termos_versao, termos_aceitos_em from public.contas where id = $1', account.id)
+    expect(saved!.termos_versao).toBe(TERMS_VERSION)
+    expect(new Date(saved!.termos_aceitos_em).getTime()).toBeGreaterThanOrEqual(before - 60_000)
+  })
+
+  it('quem chama o signUp direto sem aceitar os termos também é barrado', async () => {
+    const email = uniqueEmail()
+    const { error } = await newClient().auth.signUp({
+      email,
+      password: 'segredo1',
+      options: { data: { name: 'Ana Lima' } },
+    })
+    expect(error).not.toBeNull()
+    expect(await row('select 1 from auth.users where email = $1', email)).toBeUndefined()
   })
 
   it('quem chama o signUp direto sem a data de nascimento também é barrado', async () => {
@@ -185,7 +208,7 @@ describe('Cadastro real: dados gravados no banco', () => {
     await client.auth.signUp({
       email: uniqueEmail(),
       password: 'segredo1',
-      options: { data: { name: 'Ana Lima', isAdmin: true, admin: true } },
+      options: { data: { name: 'Ana Lima', isAdmin: true, admin: true, termsVersion: TERMS_VERSION } },
     })
     const me = await call('minha_conta', undefined, client)
     expect(me.body.isAdmin).toBeUndefined()

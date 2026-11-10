@@ -211,6 +211,7 @@ function CadastroForm({ onSignedIn }: Pick<EntrarProps, 'onSignedIn'>) {
   const [asProvider, setAsProvider] = useState(false)
   const [cpf, setCpf] = useState('')
   const [birthDate, setBirthDate] = useState('')
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [error, setError] = useState('')
   // Problemas que só o servidor sabe (e-mail ou CPF já usados), por campo
   const [serverFields, setServerFields] = useState<Errors>({})
@@ -239,6 +240,7 @@ function CadastroForm({ onSignedIn }: Pick<EntrarProps, 'onSignedIn'>) {
           ? serverFields.cpf
           : 'Informe um CPF válido.',
     birthDate: asProvider ? (birthDateError(birthDate) ?? serverFields.birthDate) : undefined,
+    terms: acceptedTerms ? serverFields.terms : 'Para criar a conta, aceite os termos de uso.',
   })
 
   // Mexer num campo apaga o aviso do servidor sobre ele
@@ -259,6 +261,7 @@ function CadastroForm({ onSignedIn }: Pick<EntrarProps, 'onSignedIn'>) {
         asProvider,
         cpf: asProvider ? cpfDigits : undefined,
         birthDate: asProvider ? (toIsoDate(birthDate) ?? undefined) : undefined,
+        acceptedTerms,
       })
       // Quem vai oferecer serviços já cai na página para cadastrar o primeiro
       onSignedIn(account, asProvider ? routes.servicos : undefined)
@@ -393,9 +396,41 @@ function CadastroForm({ onSignedIn }: Pick<EntrarProps, 'onSignedIn'>) {
         />
       )}
 
-      <p className="section-note">
-        Veja como usamos os seus dados na <a href={routes.privacidade}>política de privacidade</a>.
-      </p>
+      {/* Os links abrem em outra aba, para não perder o que já foi digitado */}
+      <div className="terms-field">
+        <label className="toggle">
+          <input
+            type="checkbox"
+            name="terms"
+            checked={acceptedTerms}
+            aria-invalid={fields.errorOf('terms') ? true : undefined}
+            aria-describedby={fields.errorOf('terms') ? 'terms-nota' : undefined}
+            onChange={(e) => {
+              setAcceptedTerms(e.target.checked)
+              clearServer('terms')
+            }}
+          />
+          <span>
+            Li e aceito os{' '}
+            <a href={routes.termos} target="_blank" rel="noopener">
+              termos de uso
+            </a>
+            .
+          </span>
+        </label>
+        {fields.errorOf('terms') && (
+          <small id="terms-nota" className="form-error">
+            {fields.errorOf('terms')}
+          </small>
+        )}
+        <p className="section-note">
+          Veja como usamos os seus dados na{' '}
+          <a href={routes.privacidade} target="_blank" rel="noopener">
+            política de privacidade
+          </a>
+          .
+        </p>
+      </div>
 
       <div aria-live="polite">{error && <p className="form-error">{error}</p>}</div>
 

@@ -2937,3 +2937,18 @@ html[data-nav='voltar']::view-transition-new(conteudo) {
   align-items: center;
   min-height: 44px;
 }
+
+/* Cadastro: aceite dos termos e link da política */
+.terms-field {
+  display: grid;
+  gap: 6px;
+}
+
+.terms-field .toggle {
+  min-height: 44px;
+}
+
+.terms-field a {
+  color: var(--azulejo);
+  font-weight: 700;
+}

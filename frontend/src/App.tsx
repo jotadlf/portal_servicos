@@ -12,6 +12,7 @@ import { PerfilPrestador } from './pages/PerfilPrestador'
 import { Privacidade } from './pages/Privacidade'
 import { Publicar } from './pages/Publicar'
 import { Servicos } from './pages/Servicos'
+import { Termos } from './pages/Termos'
 
 function App() {
   const route = useHashRoute()
@@ -86,6 +87,9 @@ function App() {
   }
   if (route.name === 'privacidade') {
     return <Privacidade account={signedIn} />
+  }
+  if (route.name === 'termos') {
+    return <Termos account={signedIn} />
   }
   if (route.name === 'contato') {
     return <Contato key={signedIn?.id} account={signedIn} onLogin={login} />

@@ -69,6 +69,7 @@ export async function signUp(
   await page.getByLabel('E-mail').fill(email)
   await page.getByLabel(/^Senha/).fill(password)
   await page.getByLabel('Confirmar senha').fill(password)
+  await page.getByRole('checkbox', { name: /Li e aceito os termos de uso/ }).check()
   if (cpf) {
     await page.getByRole('checkbox', { name: /Também quero oferecer serviços/ }).check()
     await page.getByLabel('CPF').fill(cpf)

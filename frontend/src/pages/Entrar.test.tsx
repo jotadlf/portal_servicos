@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { getToken } from '../lib/api'
+import { TERMS_VERSION } from '../lib/controlador'
 import { dbExec, dbRow, newAccount, SAMPLE_IDS } from '../test/supabase'
 import { Entrar } from './Entrar'
 
@@ -199,7 +200,9 @@ describe('Entrar: cadastro real', () => {
     await userEvent.type(screen.getByLabelText(/^E-mail/), email)
     await userEvent.type(screen.getByLabelText(/^Senha/), password)
     await userEvent.type(screen.getByLabelText(/^Confirmar senha/), password)
+    await userEvent.click(termsBox())
   }
+  const termsBox = () => screen.getByRole('checkbox', { name: /Li e aceito os termos de uso/ })
   const provider = () => screen.getByRole('checkbox', { name: /Também quero oferecer serviços/ })
   const cpfField = () => screen.getByLabelText(/^CPF/)
   const birthField = () => screen.getByLabelText(/^Data de nascimento/)
@@ -302,5 +305,29 @@ describe('Entrar: cadastro real', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Criar conta de prestador' }))
     expect(birthField()).toHaveAccessibleDescription('É preciso ter 18 anos ou mais para oferecer serviços.')
     expect(onSignedIn).not.toHaveBeenCalled()
+  })
+
+  it('só cria a conta de quem aceita os termos, e guarda a versão aceita', async () => {
+    const onSignedIn = vi.fn()
+    render(<Entrar mode="cadastro" onSignedIn={onSignedIn} />)
+    expect(termsBox()).not.toBeChecked()
+    expect(screen.getByRole('link', { name: 'termos de uso' })).toHaveAttribute('href', '#/termos')
+    expect(screen.getByRole('link', { name: 'termos de uso' })).toHaveAttribute('target', '_blank')
+    expect(screen.getByRole('link', { name: 'política de privacidade' })).toHaveAttribute('href', '#/privacidade')
+    await fill('termos@exemplo.com', 'segredo1')
+    // fill marca a caixa; aqui desmarca para ver o aviso
+    await userEvent.click(termsBox())
+    await userEvent.click(screen.getByRole('button', { name: 'Criar conta' }))
+    expect(termsBox()).toHaveAccessibleDescription('Para criar a conta, aceite os termos de uso.')
+    expect(termsBox()).toHaveFocus()
+    expect(onSignedIn).not.toHaveBeenCalled()
+
+    await userEvent.click(termsBox())
+    await userEvent.click(screen.getByRole('button', { name: 'Criar conta' }))
+    await waitFor(() => expect(onSignedIn).toHaveBeenCalled())
+    const [account] = onSignedIn.mock.calls[0]
+    expect((await dbRow('select termos_versao from public.contas where id = $1', account.id))?.termos_versao).toBe(
+      TERMS_VERSION,
+    )
   })
 })

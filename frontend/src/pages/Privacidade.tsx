@@ -64,6 +64,12 @@ const DATA: DataRow[] = [
     basis: 'Legítimo interesse (art. 7º, IX): ajudar outras pessoas a escolher',
   },
   {
+    data: 'Aceite dos termos de uso (versão e data)',
+    when: 'Ao criar a conta',
+    purpose: 'Provar qual versão dos termos você aceitou e quando.',
+    basis: 'Execução de contrato (art. 7º, V)',
+  },
+  {
     data: 'Pedidos sobre seus dados',
     when: 'Quando você envia um pedido na página de contato',
     purpose: 'Atender os seus direitos de titular.',

@@ -2,6 +2,7 @@
 // ficam só no banco.
 import { ApiError, imageUrl, removeFolder, removeImage, rpc, uploadImage } from '../../lib/api'
 import { PHOTO } from '../../lib/imagem'
+import { TERMS_VERSION } from '../../lib/controlador'
 import { getSupabaseClient } from '../../lib/supabase'
 
 export type Address = {
@@ -63,15 +64,19 @@ type NewAccount = {
   cpf?: string
   // AAAA-MM-DD
   birthDate?: string
+  // Marcou "Li e aceito os termos de uso"
+  acceptedTerms: boolean
 }
 
 const passwordError = (message: string) => new ApiError(400, message, { password: message })
 
-export async function createAccount({ name, email, password, asProvider, cpf, birthDate }: NewAccount) {
+export async function createAccount({ name, email, password, asProvider, cpf, birthDate, acceptedTerms }: NewAccount) {
+  // Vai a versão que a pessoa aceitou; o banco recusa sem ela
+  const termsVersion = acceptedTerms ? TERMS_VERSION : undefined
   // O banco confere tudo antes de criar o login, para o erro sair no campo certo.
   // Da senha, só o tamanho em bytes (o limite do bcrypt é em bytes).
   const passwordLength = new TextEncoder().encode(password).length
-  await rpc('validar_cadastro', { name, email, asProvider, cpf, birthDate, passwordLength })
+  await rpc('validar_cadastro', { name, email, asProvider, cpf, birthDate, termsVersion, passwordLength })
 
   let result
   try {
@@ -85,6 +90,7 @@ export async function createAccount({ name, email, password, asProvider, cpf, bi
           asProvider,
           cpf: asProvider ? cpf : undefined,
           birthDate: asProvider ? birthDate : undefined,
+          termsVersion,
         },
       },
     })

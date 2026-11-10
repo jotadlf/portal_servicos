@@ -14,6 +14,7 @@ describe('parse', () => {
     expect(parse('#/cadastro')).toEqual({ name: 'entrar', mode: 'cadastro' })
     expect(parse('#/privacidade')).toEqual({ name: 'privacidade' })
     expect(parse('#/contato')).toEqual({ name: 'contato' })
+    expect(parse('#/termos')).toEqual({ name: 'termos' })
   })
 
   it('mantém o link antigo da Área do prestador', () => {

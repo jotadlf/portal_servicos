@@ -51,7 +51,8 @@ export function Conta({ account, onLogin, onLogout, onAccountChange }: ContaProp
 
 function PrivacyLinks() {
   return (
-    <nav className="privacy-links" aria-label="Privacidade">
+    <nav className="privacy-links" aria-label="Termos e privacidade">
+      <a href={routes.termos}>Termos de uso</a>
       <a href={routes.privacidade}>Política de privacidade</a>
       <a href={routes.contato}>Pedidos sobre seus dados</a>
     </nav>

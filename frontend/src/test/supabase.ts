@@ -34,6 +34,7 @@ export function newAccount({ asProvider = false, cpfIndex = 0 } = {}) {
     asProvider,
     cpf: asProvider ? CPFS[cpfIndex] : undefined,
     birthDate: asProvider ? '1990-03-25' : undefined,
+    acceptedTerms: true,
   })
 }
 
