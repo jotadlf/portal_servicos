@@ -1,6 +1,18 @@
 // @vitest-environment node
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
-import { call, closeDb, exec, newClient, readyProvider, resetDb, row, SAMPLE_IDS, signUp, VALID_CPFS } from './ajuda.ts'
+import {
+  ADULT_BIRTH_DATE,
+  call,
+  closeDb,
+  exec,
+  newClient,
+  readyProvider,
+  resetDb,
+  row,
+  SAMPLE_IDS,
+  signUp,
+  VALID_CPFS,
+} from './ajuda.ts'
 
 beforeEach(resetDb)
 afterAll(closeDb)
@@ -42,6 +54,7 @@ describe('Apagar conta', () => {
       passwordLength: 8,
       asProvider: true,
       cpf: VALID_CPFS[0],
+      birthDate: ADULT_BIRTH_DATE,
     })
     expect(response.status).toBe(200)
   })
