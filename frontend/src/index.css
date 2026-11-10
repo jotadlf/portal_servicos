@@ -2198,6 +2198,11 @@ a.icon-button {
 }
 
 /* Perfil: apagar a conta fica no fim, separado do formulário */
+.delete-confirm {
+  display: grid;
+  gap: 10px;
+}
+
 .delete-account {
   margin-top: 16px;
   padding-top: 20px;

@@ -125,15 +125,51 @@ export async function signOut() {
   await auth().signOut({ scope: 'local' })
 }
 
-// Apaga a conta para sempre: primeiro as fotos da pasta dela no Storage (o banco não
-// consegue), depois a conta, que leva junto perfil, serviços, contatos e avaliações.
-export async function deleteAccount() {
-  const { id, isAdmin } = await rpc<AccountData>('minha_conta')
+const WRONG_PASSWORD = 'Senha incorreta.'
+
+// Confere a senha entrando de novo pelo Supabase Auth: a senha não passa pelo banco, e a sessão
+// nova registra a hora do login, que o banco exige recente para ações sensíveis.
+async function confirmPassword(email: string, password: string) {
+  if (!password) throw new ApiError(400, 'Digite sua senha.', { password: 'Digite sua senha.' })
+  let result
+  try {
+    result = await auth().signInWithPassword({ email, password })
+  } catch {
+    throw new ApiError(0, OFFLINE)
+  }
+  if (result.error) {
+    if (isOffline(result.error)) throw new ApiError(0, OFFLINE)
+    throw new ApiError(401, WRONG_PASSWORD, { password: WRONG_PASSWORD })
+  }
+}
+
+// Apaga a conta para sempre, depois de conferir a senha: primeiro as fotos da pasta dela no
+// Storage (o banco não consegue), depois a conta, que leva junto perfil, serviços, contatos,
+// avaliações e pedidos.
+export async function deleteAccount(password: string) {
+  const { id, email, isAdmin } = await rpc<AccountData>('minha_conta')
   // O banco recusa; aqui só evita apagar as fotos antes da recusa
   if (isAdmin) throw new ApiError(403, 'A conta da administração não pode ser apagada pelo app.')
+  await confirmPassword(email, password)
   await removeFolder(id)
   await rpc('apagar_conta')
   await auth().signOut({ scope: 'local' }).catch(() => {})
+}
+
+// Cópia de tudo o que o portal guarda sobre a pessoa, num arquivo JSON
+export async function downloadMyData() {
+  const data = await rpc<Record<string, unknown>>('meus_dados')
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `meus-dados-portal-de-servicos-${new Date().toISOString().slice(0, 10)}.json`
+  document.body.append(link)
+  link.click()
+  link.remove()
+  // Dá tempo ao navegador de começar o download antes de soltar o arquivo da memória
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  return data
 }
 
 // Conta da sessão guardada nesta aba, se ainda valer

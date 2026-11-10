@@ -2,7 +2,15 @@ import { useRef, useState, type FormEvent } from 'react'
 import { Avatar } from '../components/Avatar'
 import { BottomMenu } from '../components/BottomMenu'
 import { LoginBar } from '../components/LoginBar'
-import { deleteAccount, updateAccount, uploadPhoto, type Account, type Address } from '../features/conta/usuario'
+import { Field } from '../components/Field'
+import {
+  deleteAccount,
+  downloadMyData,
+  updateAccount,
+  uploadPhoto,
+  type Account,
+  type Address,
+} from '../features/conta/usuario'
 import { routes } from '../hooks/useHashRoute'
 import { ApiError, errorMessage } from '../lib/api'
 import { fetchAddress, formatCep, isValidUf } from '../lib/cep'
@@ -31,6 +39,7 @@ export function Conta({ account, onLogin, onLogout, onAccountChange }: ContaProp
             />
             {/* O portal não pode ficar sem administração */}
             <PrivacyLinks />
+            <DownloadData />
             {!account.isAdmin && (
               <DeleteAccount isProvider={Boolean(account.professionalId)} onDeleted={onLogout} />
             )}
@@ -63,33 +72,50 @@ function PrivacyLinks() {
 // para quem quer recomeçar do zero. CPF e data de nascimento errados se corrigem pelo pedido de contato.
 function DeleteAccount({ isProvider, onDeleted }: { isProvider: boolean; onDeleted: () => void }) {
   const [confirming, setConfirming] = useState(false)
+  const [password, setPassword] = useState('')
+  const [passwordError, setPasswordError] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const cancelRef = useRef<HTMLButtonElement>(null)
+  const passwordRef = useRef<HTMLInputElement>(null)
   const startRef = useRef<HTMLButtonElement>(null)
 
   function open() {
     setConfirming(true)
     setError('')
-    // Foco no "Cancelar": a escolha segura fica à mão
-    window.setTimeout(() => cancelRef.current?.focus())
+    setPasswordError('')
+    setPassword('')
+    window.setTimeout(() => passwordRef.current?.focus())
   }
 
   function cancel() {
     setConfirming(false)
+    setPassword('')
     window.setTimeout(() => startRef.current?.focus())
   }
 
-  async function confirm() {
+  async function confirm(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
     if (busy) return
+    if (!password) {
+      setPasswordError('Digite sua senha.')
+      passwordRef.current?.focus()
+      return
+    }
     setBusy(true)
     setError('')
+    setPasswordError('')
     try {
-      await deleteAccount()
+      await deleteAccount(password)
       window.location.hash = routes.inicio
       onDeleted()
     } catch (failure) {
-      setError(errorMessage(failure))
+      const fieldError = failure instanceof ApiError ? failure.fields.password : undefined
+      if (fieldError) {
+        setPasswordError(fieldError)
+        passwordRef.current?.focus()
+      } else {
+        setError(errorMessage(failure))
+      }
       setBusy(false)
     }
   }
@@ -98,23 +124,37 @@ function DeleteAccount({ isProvider, onDeleted }: { isProvider: boolean; onDelet
     <section className="page-section delete-account" aria-labelledby="apagar-conta-titulo">
       <h2 id="apagar-conta-titulo">Apagar conta</h2>
       {confirming ? (
-        <>
+        <form className="delete-confirm" onSubmit={confirm} noValidate>
           <p className="notice notice-danger">
             {isProvider
               ? 'Seu perfil público, seus serviços, os contatos e as avaliações recebidas serão apagados junto. '
               : 'Seus dados, sua foto e as avaliações que você deu serão apagados. '}
             Isso não pode ser desfeito.
           </p>
+          <Field
+            ref={passwordRef}
+            label="Sua senha"
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            help="Para confirmar que é você."
+            error={passwordError || undefined}
+            onChange={(e) => {
+              setPassword(e.target.value)
+              setPasswordError('')
+            }}
+          />
           <div aria-live="polite">{error && <p className="form-error">{error}</p>}</div>
           <div className="form-actions">
-            <button ref={cancelRef} type="button" className="clear-filters" disabled={busy} onClick={cancel}>
+            <button type="button" className="clear-filters" disabled={busy} onClick={cancel}>
               Cancelar
             </button>
-            <button type="button" className="danger-button" disabled={busy} onClick={confirm}>
+            <button type="submit" className="danger-button" disabled={busy}>
               {busy ? 'Apagando…' : 'Apagar minha conta'}
             </button>
           </div>
-        </>
+        </form>
       ) : (
         <>
           <p className="section-note">
@@ -128,6 +168,47 @@ function DeleteAccount({ isProvider, onDeleted }: { isProvider: boolean; onDelet
           </div>
         </>
       )}
+    </section>
+  )
+}
+
+// Cópia de tudo o que o portal guarda sobre a pessoa, num arquivo para baixar
+function DownloadData() {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [done, setDone] = useState(false)
+
+  async function download() {
+    if (busy) return
+    setBusy(true)
+    setError('')
+    setDone(false)
+    try {
+      await downloadMyData()
+      setDone(true)
+    } catch (failure) {
+      setError(errorMessage(failure))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="page-section" aria-labelledby="seus-dados-titulo">
+      <h2 id="seus-dados-titulo">Seus dados</h2>
+      <p className="section-note">
+        Baixe um arquivo com tudo o que o portal guarda sobre você: conta, perfil, serviços, contatos,
+        avaliações e pedidos.
+      </p>
+      <div aria-live="polite">
+        {error && <p className="form-error">{error}</p>}
+        {done && <p className="form-ready">Arquivo baixado.</p>}
+      </div>
+      <div>
+        <button type="button" className="clear-filters" disabled={busy} onClick={download}>
+          {busy ? 'Preparando…' : 'Baixar meus dados'}
+        </button>
+      </div>
     </section>
   )
 }

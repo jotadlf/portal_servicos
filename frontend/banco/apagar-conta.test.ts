@@ -10,6 +10,7 @@ import {
   resetDb,
   row,
   SAMPLE_IDS,
+  signIn,
   signUp,
   PRIVACY_VERSION,
   TERMS_VERSION,
@@ -82,5 +83,40 @@ describe('Apagar conta', () => {
   it('sem login responde 401 e não apaga nada', async () => {
     expect((await call('apagar_conta', {}, newClient())).status).toBe(401)
     expect(await count('select count(*) as n from public.contas where id = $1', SAMPLE_IDS.carlos)).toBe(1)
+  })
+})
+
+describe('Apagar conta: exige login com senha recente', () => {
+  // Muda por um instante a janela de tempo para simular um login antigo
+  async function withWindow(seconds: number, run: () => Promise<void>) {
+    await exec(
+      `create or replace function interno.janela_reautenticacao() returns integer
+       language sql immutable set search_path = '' as $$ select ${seconds} $$`,
+    )
+    try {
+      await run()
+    } finally {
+      await exec(
+        `create or replace function interno.janela_reautenticacao() returns integer
+         language sql immutable set search_path = '' as $$ select 300 $$`,
+      )
+    }
+  }
+
+  it('recusa quem entrou há mais tempo que a janela, sem apagar nada', async () => {
+    const { client, account } = await signUp()
+    await withWindow(-60, async () => {
+      const response = await call('apagar_conta', undefined, client)
+      expect(response.status).toBe(401)
+      expect(response.body.fields).toEqual({ password: 'Confirme sua senha para apagar a conta.' })
+    })
+    expect(await count('select count(*) as n from public.contas where id = $1', account.id)).toBe(1)
+  })
+
+  it('entrar de novo com a senha libera', async () => {
+    const { account } = await signUp({ email: 'reentra@exemplo.com', password: 'segredo1' })
+    const client = await signIn('reentra@exemplo.com', 'segredo1')
+    expect((await call('apagar_conta', undefined, client)).status).toBe(200)
+    expect(await count('select count(*) as n from public.contas where id = $1', account.id)).toBe(0)
   })
 })

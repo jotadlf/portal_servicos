@@ -108,8 +108,8 @@ export function Privacidade({ account }: { account?: Account }) {
         <Section id="direitos" title="Seus direitos">
           <p>
             Você pode ver, corrigir, levar para outro serviço ou apagar os seus dados, saber com quem os
-            compartilhamos e retirar uma autorização que tenha dado. Peça pela {contato}; respondemos em até
-            15 dias. Você também pode reclamar na Autoridade Nacional de Proteção de Dados (ANPD).
+            compartilhamos e retirar uma autorização que tenha dado. Para uma cópia, use "Baixar meus dados"
+            no <a href={routes.conta}>Perfil</a>; para o resto, peça pela {contato}. Respondemos em até 15 dias. Você também pode reclamar na Autoridade Nacional de Proteção de Dados (ANPD).
           </p>
         </Section>
 

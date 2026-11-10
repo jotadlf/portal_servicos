@@ -102,7 +102,10 @@ describe('Admin: modalidades gravadas no banco', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Remover Eletricista' }))
     await userEvent.click(screen.getByRole('button', { name: /^Remover e apagar \d+ serviços$/ }))
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Remover Eletricista' })).not.toBeInTheDocument())
-    expect((await dbRow(`select count(*) as n from public.servicos where modalidade_id = 'eletricista'`))?.n).toBe(0)
+    // A lista some da tela antes de o banco terminar de apagar: espera o banco
+    await waitFor(async () =>
+      expect((await dbRow(`select count(*) as n from public.servicos where modalidade_id = 'eletricista'`))?.n).toBe(0),
+    )
   })
 
   it('remover a modalidade apaga a imagem dela do Storage', async () => {

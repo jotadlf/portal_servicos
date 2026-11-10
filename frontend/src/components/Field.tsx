@@ -1,7 +1,8 @@
-import { useState, type InputHTMLAttributes } from 'react'
+import { useState, type ComponentProps } from 'react'
 import { Eye as EyeOpen, EyeOff } from 'lucide-react'
 
-type FieldProps = InputHTMLAttributes<HTMLInputElement> & {
+// ComponentProps traz também o ref (React 19), que vai direto para o <input>
+type FieldProps = ComponentProps<'input'> & {
   label: string
   name: string
   // Mensagem do problema; com ela o campo ganha o contorno vermelho

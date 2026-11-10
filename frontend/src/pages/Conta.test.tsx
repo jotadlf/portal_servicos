@@ -236,20 +236,40 @@ describe('Conta: CEP', () => {
 describe('Conta: apagar a conta', () => {
   const startDelete = () => userEvent.click(screen.getByRole('button', { name: 'Apagar conta' }))
   const confirmDelete = () => userEvent.click(screen.getByRole('button', { name: 'Apagar minha conta' }))
+  const passwordField = () => screen.getByLabelText(/^Sua senha/)
 
-  it('pede confirmação; cancelar não apaga nada', async () => {
+  it('pede a senha; cancelar não apaga nada', async () => {
     const account = await newAccount()
     renderConta(account)
     await startDelete()
     expect(screen.getByText(/Isso não pode ser desfeito/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Cancelar' })).toHaveFocus()
+    expect(passwordField()).toHaveFocus()
 
     await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
     expect(screen.queryByRole('button', { name: 'Apagar minha conta' })).not.toBeInTheDocument()
     expect(await dbRow('select id from public.contas where id = $1', account.id)).toBeDefined()
   })
 
-  it('apaga a conta, as fotos e encerra a sessão', async () => {
+  it('sem senha ou com senha errada não apaga nada', async () => {
+    const account = await newAccount({ asProvider: true })
+    renderConta(account)
+    await userEvent.upload(photoInput(), PNG_FILE())
+    await waitFor(async () => expect(await uploadedBy(account.id)).toBe(1))
+    await startDelete()
+
+    await confirmDelete()
+    expect(passwordField()).toHaveAccessibleDescription('Digite sua senha.')
+
+    await userEvent.type(passwordField(), 'errada123')
+    await confirmDelete()
+    await waitFor(() => expect(passwordField()).toHaveAccessibleDescription('Senha incorreta.'))
+    expect(passwordField()).toHaveFocus()
+    expect(await dbRow('select id from public.contas where id = $1', account.id)).toBeDefined()
+    // A foto só sai depois da senha conferida
+    expect(await uploadedBy(account.id)).toBe(1)
+  })
+
+  it('com a senha certa apaga a conta, as fotos e encerra a sessão', async () => {
     const account = await newAccount({ asProvider: true })
     const { onLogout } = renderConta(account)
     await userEvent.upload(photoInput(), PNG_FILE())
@@ -257,6 +277,7 @@ describe('Conta: apagar a conta', () => {
 
     await startDelete()
     expect(screen.getByText(/Seu perfil público, seus serviços/)).toBeInTheDocument()
+    await userEvent.type(passwordField(), 'segredo1')
     await confirmDelete()
 
     await waitFor(() => expect(onLogout).toHaveBeenCalled())
@@ -272,3 +293,30 @@ describe('Conta: apagar a conta', () => {
     expect(screen.queryByRole('button', { name: 'Apagar conta' })).not.toBeInTheDocument()
   })
 })
+
+describe('Conta: baixar meus dados', () => {
+  it('baixa um arquivo JSON com os dados da conta', async () => {
+    const account = await newAccount({ asProvider: true })
+    const created: Blob[] = []
+    const realCreate = URL.createObjectURL
+    URL.createObjectURL = (blob: Blob) => {
+      created.push(blob)
+      return 'blob:teste'
+    }
+    URL.revokeObjectURL = () => {}
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    try {
+      renderConta(account)
+      await userEvent.click(screen.getByRole('button', { name: 'Baixar meus dados' }))
+      expect(await screen.findByText('Arquivo baixado.')).toBeInTheDocument()
+      expect(click).toHaveBeenCalled()
+      const data = JSON.parse(await created[0].text())
+      expect(data.conta).toMatchObject({ email: account.email, nome: 'Ana Lima', cpf: '***.982.247-**' })
+      expect(data.prestador).toMatchObject({ situacao: 'rascunho' })
+    } finally {
+      URL.createObjectURL = realCreate
+      click.mockRestore()
+    }
+  })
+})
+
