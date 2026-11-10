@@ -35,11 +35,10 @@ export function Entrar({ mode, onSignedIn, guestHref = routes.inicio }: EntrarPr
         <div className="auth-head">
           <img src={logo} alt="" width={40} height={40} />
           <h1 className="page-title">{isSignup ? 'Crie sua conta' : 'Entre na sua conta'}</h1>
-          <p className="section-note">
-            {isSignup
-              ? 'Com uma conta você contrata serviços e, se quiser, oferece os seus.'
-              : 'Para ver preços e falar com os profissionais pelo WhatsApp.'}
-          </p>
+          {/* No cadastro a frase sai, para a tela caber sem rolar */}
+          {!isSignup && (
+            <p className="section-note">Para ver preços e falar com os profissionais pelo WhatsApp.</p>
+          )}
         </div>
 
         <SocialButtons />
@@ -54,15 +53,13 @@ export function Entrar({ mode, onSignedIn, guestHref = routes.inicio }: EntrarPr
           <LoginForm key="login" onSignedIn={onSignedIn} />
         )}
 
+        {/* Numa linha só. Visitante vê os serviços, mas sem preço, foto e WhatsApp dos prestadores */}
         <p className="auth-switch">
           {isSignup ? 'Já tem conta?' : 'Ainda não tem conta?'}{' '}
           <a href={isSignup ? routes.entrar : routes.cadastro}>
             {isSignup ? 'Entrar' : 'Criar conta'}
           </a>
-        </p>
-
-        {/* Visitante vê os serviços, mas sem preço, foto e WhatsApp dos prestadores */}
-        <p className="auth-switch">
+          <span aria-hidden="true"> · </span>
           <a href={guestHref}>Entrar como visitante</a>
         </p>
       </main>
@@ -313,31 +310,34 @@ function CadastroForm({ onSignedIn }: Pick<EntrarProps, 'onSignedIn'>) {
         }}
       />
 
-      <Field
-        label="Senha"
-        name="password"
-        type="password"
-        required
-        minLength={MIN_PASSWORD}
-        autoComplete="new-password"
-        value={password}
-        help={`Pelo menos ${MIN_PASSWORD} caracteres.`}
-        error={fields.errorOf('password')}
-        onBlur={() => fields.touch('password')}
-        onChange={(e) => setPassword(e.target.value)}
-      />
+      {/* Lado a lado, para o cadastro caber na tela sem rolar */}
+      <div className="field-pair">
+        <Field
+          label="Senha"
+          name="password"
+          type="password"
+          required
+          minLength={MIN_PASSWORD}
+          autoComplete="new-password"
+          placeholder={`Mínimo ${MIN_PASSWORD}`}
+          value={password}
+          error={fields.errorOf('password')}
+          onBlur={() => fields.touch('password')}
+          onChange={(e) => setPassword(e.target.value)}
+        />
 
-      <Field
-        label="Confirmar senha"
-        name="passwordConfirm"
-        type="password"
-        required
-        autoComplete="new-password"
-        value={passwordConfirm}
-        error={fields.errorOf('passwordConfirm')}
-        onBlur={() => fields.touch('passwordConfirm')}
-        onChange={(e) => setPasswordConfirm(e.target.value)}
-      />
+        <Field
+          label="Confirmar senha"
+          name="passwordConfirm"
+          type="password"
+          required
+          autoComplete="new-password"
+          value={passwordConfirm}
+          error={fields.errorOf('passwordConfirm')}
+          onBlur={() => fields.touch('passwordConfirm')}
+          onChange={(e) => setPasswordConfirm(e.target.value)}
+        />
+      </div>
 
       <label className="provider-option">
         <span className="provider-icon" aria-hidden="true">
@@ -359,41 +359,43 @@ function CadastroForm({ onSignedIn }: Pick<EntrarProps, 'onSignedIn'>) {
       </label>
 
       {asProvider && (
-        <Field
-          label="CPF"
-          name="cpf"
-          required
-          inputMode="numeric"
-          autoComplete="off"
-          placeholder="000.000.000-00"
-          value={cpf}
-          help="Pedimos o CPF de quem oferece serviços. Ele não aparece no seu perfil."
-          error={fields.errorOf('cpf')}
-          onBlur={() => fields.touch('cpf')}
-          onChange={(e) => {
-            setCpf(formatCpf(e.target.value))
-            clearServer('cpf')
-          }}
-        />
-      )}
-
-      {asProvider && (
-        <Field
-          label="Data de nascimento"
-          name="birthDate"
-          required
-          inputMode="numeric"
-          autoComplete="bday"
-          placeholder="DD/MM/AAAA"
-          value={birthDate}
-          help="É preciso ter 18 anos ou mais. Ela não aparece no seu perfil."
-          error={fields.errorOf('birthDate')}
-          onBlur={() => fields.touch('birthDate')}
-          onChange={(e) => {
-            setBirthDate(formatBirthDate(e.target.value))
-            clearServer('birthDate')
-          }}
-        />
+        <div className="field-group">
+          <div className="field-pair">
+            <Field
+              label="CPF"
+              name="cpf"
+              required
+              inputMode="numeric"
+              autoComplete="off"
+              placeholder="000.000.000-00"
+              value={cpf}
+              error={fields.errorOf('cpf')}
+              onBlur={() => fields.touch('cpf')}
+              onChange={(e) => {
+                setCpf(formatCpf(e.target.value))
+                clearServer('cpf')
+              }}
+            />
+            <Field
+              label="Data de nascimento"
+              name="birthDate"
+              required
+              inputMode="numeric"
+              autoComplete="bday"
+              placeholder="DD/MM/AAAA"
+              value={birthDate}
+              error={fields.errorOf('birthDate')}
+              onBlur={() => fields.touch('birthDate')}
+              onChange={(e) => {
+                setBirthDate(formatBirthDate(e.target.value))
+                clearServer('birthDate')
+              }}
+            />
+          </div>
+          <small className="field-help">
+            Pedimos de quem oferece serviços, que precisa ter 18 anos ou mais. Não aparecem no seu perfil.
+          </small>
+        </div>
       )}
 
       {/* Uma caixa para os dois textos. Os links abrem em outra aba, para não perder o que já foi digitado */}

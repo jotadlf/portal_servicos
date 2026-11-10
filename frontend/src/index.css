@@ -1618,10 +1618,23 @@ a.icon-button {
 
 /* Entrar e Criar conta: mais compactas, para o formulário caber com menos rolagem */
 .auth {
-  gap: 14px;
+  gap: 10px;
   max-width: calc(26rem + 2 * var(--gutter));
-  padding-top: 12px;
-  padding-bottom: 32px;
+  padding-top: 8px;
+  padding-bottom: 16px;
+}
+
+/* Dois campos lado a lado (senhas, CPF e nascimento), para o cadastro caber sem rolar */
+.field-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+.field-group {
+  display: grid;
+  gap: 4px;
 }
 
 .auth-head {
@@ -1693,7 +1706,7 @@ a.icon-button {
   grid-template-columns: auto 1fr auto;
   gap: 8px 12px;
   align-items: center;
-  padding: 12px 14px;
+  padding: 8px 14px;
   border: 1px dashed var(--azulejo-linha);
   border-radius: 16px;
   background: var(--superficie);
