@@ -1,6 +1,7 @@
--- Termos de uso e política de privacidade: o cadastro só cria a conta de quem aceitou as versões
--- atuais dos dois, e a conta guarda quando e qual versão de cada um foi aceita. Contas criadas
--- antes ficam sem o aceite. Ao mudar um dos textos, mude a versão aqui e em src/lib/controlador.ts.
+-- Termos de uso e política de privacidade: o cadastro tem uma caixa só para aceitar os dois e
+-- só cria a conta de quem aceitou as versões atuais. A conta guarda a versão e a data de cada um,
+-- para um texto poder mudar sem o outro. Contas criadas antes ficam sem o aceite.
+-- Ao mudar um dos textos, mude a versão dele aqui e em src/lib/controlador.ts.
 
 alter table public.contas
   add column termos_versao text,
@@ -16,18 +17,16 @@ create function interno.versao_privacidade() returns text
 language sql immutable set search_path = ''
 as $$ select '2026-11-10' $$;
 
--- O cadastro manda as versões que a pessoa leu e aceitou; precisam ser as atuais
+-- O cadastro manda as versões que a pessoa leu e aceitou; precisam ser as atuais dos dois
 create function interno.conferir_aceites(p jsonb) returns void
 language plpgsql stable set search_path = ''
 as $$
 declare
   dados jsonb := interno.objeto(p);
 begin
-  if dados ->> 'termsVersion' is distinct from interno.versao_termos() then
-    perform interno.erro_campo('terms', 'Para criar a conta, aceite os termos de uso.');
-  end if;
-  if dados ->> 'privacyVersion' is distinct from interno.versao_privacidade() then
-    perform interno.erro_campo('privacy', 'Para criar a conta, aceite a política de privacidade.');
+  if dados ->> 'termsVersion' is distinct from interno.versao_termos()
+     or dados ->> 'privacyVersion' is distinct from interno.versao_privacidade() then
+    perform interno.erro_campo('terms', 'Para criar a conta, aceite os termos de uso e a política de privacidade.');
   end if;
 end
 $$;

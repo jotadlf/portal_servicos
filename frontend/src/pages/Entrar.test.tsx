@@ -201,10 +201,9 @@ describe('Entrar: cadastro real', () => {
     await userEvent.type(screen.getByLabelText(/^Senha/), password)
     await userEvent.type(screen.getByLabelText(/^Confirmar senha/), password)
     await userEvent.click(termsBox())
-    await userEvent.click(privacyBox())
   }
-  const termsBox = () => screen.getByRole('checkbox', { name: /Li e aceito os termos de uso/ })
-  const privacyBox = () => screen.getByRole('checkbox', { name: /Li e aceito a política de privacidade/ })
+  const termsBox = () =>
+    screen.getByRole('checkbox', { name: /Li e aceito os termos de uso e a política de privacidade/ })
   const provider = () => screen.getByRole('checkbox', { name: /Também quero oferecer serviços/ })
   const cpfField = () => screen.getByLabelText(/^CPF/)
   const birthField = () => screen.getByLabelText(/^Data de nascimento/)
@@ -309,30 +308,24 @@ describe('Entrar: cadastro real', () => {
     expect(onSignedIn).not.toHaveBeenCalled()
   })
 
-  it('só cria a conta de quem aceita os termos e a política, e guarda as versões aceitas', async () => {
+  it('uma caixa aceita os termos e a política; sem ela não cria a conta', async () => {
     const onSignedIn = vi.fn()
     render(<Entrar mode="cadastro" onSignedIn={onSignedIn} />)
+    expect(screen.getAllByRole('checkbox')).toHaveLength(2) // a outra é "Também quero oferecer serviços"
     expect(termsBox()).not.toBeChecked()
-    expect(privacyBox()).not.toBeChecked()
     expect(screen.getByRole('link', { name: 'termos de uso' })).toHaveAttribute('href', '#/termos')
     expect(screen.getByRole('link', { name: 'termos de uso' })).toHaveAttribute('target', '_blank')
     expect(screen.getByRole('link', { name: 'política de privacidade' })).toHaveAttribute('href', '#/privacidade')
     expect(screen.getByRole('link', { name: 'política de privacidade' })).toHaveAttribute('target', '_blank')
     await fill('termos@exemplo.com', 'segredo1')
-    // fill marca as duas; aqui desmarca para ver os avisos
+    // fill marca a caixa; aqui desmarca para ver o aviso
     await userEvent.click(termsBox())
-    await userEvent.click(privacyBox())
     await userEvent.click(screen.getByRole('button', { name: 'Criar conta' }))
-    expect(termsBox()).toHaveAccessibleDescription('Para criar a conta, aceite os termos de uso.')
-    expect(privacyBox()).toHaveAccessibleDescription('Para criar a conta, aceite a política de privacidade.')
+    expect(termsBox()).toHaveAccessibleDescription('Para criar a conta, aceite os termos de uso e a política de privacidade.')
     expect(termsBox()).toHaveFocus()
-
-    await userEvent.click(termsBox())
-    await userEvent.click(screen.getByRole('button', { name: 'Criar conta' }))
-    expect(privacyBox()).toHaveFocus()
     expect(onSignedIn).not.toHaveBeenCalled()
 
-    await userEvent.click(privacyBox())
+    await userEvent.click(termsBox())
     await userEvent.click(screen.getByRole('button', { name: 'Criar conta' }))
     await waitFor(() => expect(onSignedIn).toHaveBeenCalled())
     const [account] = onSignedIn.mock.calls[0]

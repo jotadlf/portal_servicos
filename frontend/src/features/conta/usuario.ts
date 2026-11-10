@@ -64,9 +64,8 @@ type NewAccount = {
   cpf?: string
   // AAAA-MM-DD
   birthDate?: string
-  // Marcou "Li e aceito os termos de uso" e "Li e aceito a política de privacidade"
+  // Marcou "Li e aceito os termos de uso e a política de privacidade"
   acceptedTerms: boolean
-  acceptedPrivacy: boolean
 }
 
 const passwordError = (message: string) => new ApiError(400, message, { password: message })
@@ -75,7 +74,7 @@ export async function createAccount(account: NewAccount) {
   const { name, email, password, asProvider, cpf, birthDate } = account
   // Vão as versões que a pessoa aceitou; o banco recusa sem elas
   const termsVersion = account.acceptedTerms ? TERMS_VERSION : undefined
-  const privacyVersion = account.acceptedPrivacy ? PRIVACY_VERSION : undefined
+  const privacyVersion = account.acceptedTerms ? PRIVACY_VERSION : undefined
   // O banco confere tudo antes de criar o login, para o erro sair no campo certo.
   // Da senha, só o tamanho em bytes (o limite do bcrypt é em bytes).
   const passwordLength = new TextEncoder().encode(password).length

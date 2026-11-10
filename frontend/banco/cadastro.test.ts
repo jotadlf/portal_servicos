@@ -133,11 +133,11 @@ describe('Cadastro real: dados gravados no banco', () => {
     ['data de mais de 120 anos', { ...provider, birthDate: `${thisYear - 121}-01-01` }, 'birthDate', /data válida/],
     ['data que não é texto', { ...provider, birthDate: 19900325 }, 'birthDate', /formato inválido/],
     ['menor de 18 anos', { ...provider, birthDate: `${thisYear - 17}-01-01` }, 'birthDate', /18 anos ou mais/],
-    ['sem aceitar os termos', { termsVersion: undefined }, 'terms', 'Para criar a conta, aceite os termos de uso.'],
+    ['sem aceitar os termos', { termsVersion: undefined }, 'terms', 'Para criar a conta, aceite os termos de uso e a política de privacidade.'],
     ['aceite de uma versão antiga dos termos', { termsVersion: '2020-01-01' }, 'terms', /aceite os termos/],
     ['aceite que não é texto', { termsVersion: true }, 'terms', /aceite os termos/],
-    ['sem aceitar a política', { privacyVersion: undefined }, 'privacy', 'Para criar a conta, aceite a política de privacidade.'],
-    ['aceite de uma versão antiga da política', { privacyVersion: '2020-01-01' }, 'privacy', /aceite a política/],
+    ['sem a versão da política', { privacyVersion: undefined }, 'terms', 'Para criar a conta, aceite os termos de uso e a política de privacidade.'],
+    ['aceite de uma versão antiga da política', { privacyVersion: '2020-01-01' }, 'terms', /política de privacidade/],
   ])('recusa %s', async (_, data, field, message) => {
     const response = await cadastro({ name: 'Ana Lima', email: uniqueEmail(), password: 'segredo1', ...data })
     expect(response.status).toBe(400)

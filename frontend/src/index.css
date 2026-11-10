@@ -2911,13 +2911,8 @@ html[data-nav='voltar']::view-transition-new(conteudo) {
   min-height: 44px;
 }
 
-/* Cadastro: aceite dos termos e da política */
+/* Cadastro: uma caixa para aceitar os termos e a política */
 .terms-field {
-  display: grid;
-  gap: 2px;
-}
-
-.accept-box {
   display: grid;
   gap: 2px;
 }
