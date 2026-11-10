@@ -84,7 +84,7 @@ test('perfil: dados salvos continuam depois de recarregar', async ({ page }) => 
   await page.goto('/#/conta')
   await page.getByLabel('WhatsApp').fill('62999998888')
   await page.getByLabel('Bairro').fill('Setor Sul')
-  await page.getByLabel('Cidade').fill('Goiânia')
+  await page.getByLabel('Cidade', { exact: true }).fill('Goiânia')
   await page.getByLabel('UF').fill('go')
   await page.getByRole('button', { name: 'Salvar perfil' }).click()
   await expect(page.getByText('Perfil salvo.')).toBeVisible()
