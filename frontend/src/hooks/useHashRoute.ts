@@ -9,6 +9,8 @@ export type Route =
   | { name: 'publicar' }
   | { name: 'admin' }
   | { name: 'entrar'; mode: 'login' | 'cadastro' }
+  | { name: 'privacidade' }
+  | { name: 'contato' }
 
 export function parse(hash: string): Route {
   const parts = hash.replace(/^#\/?/, '').split('/')
@@ -20,6 +22,8 @@ export function parse(hash: string): Route {
   if (parts[0] === 'admin') return { name: 'admin' }
   if (parts[0] === 'entrar') return { name: 'entrar', mode: 'login' }
   if (parts[0] === 'cadastro') return { name: 'entrar', mode: 'cadastro' }
+  if (parts[0] === 'privacidade') return { name: 'privacidade' }
+  if (parts[0] === 'contato') return { name: 'contato' }
   return { name: 'inicio' }
 }
 
@@ -56,4 +60,6 @@ export const routes = {
   admin: '#/admin',
   entrar: '#/entrar',
   cadastro: '#/cadastro',
+  privacidade: '#/privacidade',
+  contato: '#/contato',
 }

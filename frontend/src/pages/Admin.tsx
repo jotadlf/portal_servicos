@@ -8,6 +8,14 @@ import { LoadError, Loading } from '../components/Status'
 import { fetchStats, type RankingRow, type Stats } from '../features/admin/estatisticas'
 import { formatMoney, gateways, type PaymentGateway, type PlanSettings } from '../features/conta/plano'
 import { fetchPlanSettings, savePlanSettings } from '../features/conta/plano-api'
+import {
+  fetchAllDataRequests,
+  formatRequestDate,
+  markDataRequestAnswered,
+  responseDeadline,
+  subjectLabel,
+  type AdminDataRequest,
+} from '../features/conta/pedidos'
 import type { Account } from '../features/conta/usuario'
 import {
   addProfession,
@@ -24,6 +32,7 @@ const tabs = [
   { id: 'painel', label: 'Painel' },
   { id: 'modalidades', label: 'Modalidades' },
   { id: 'plano', label: 'Plano e pagamentos' },
+  { id: 'pedidos', label: 'Pedidos' },
 ] as const
 
 type TabId = (typeof tabs)[number]['id']
@@ -67,6 +76,7 @@ export function Admin({ account, onLogin }: AdminProps) {
             {tab === 'painel' && <Painel />}
             {tab === 'modalidades' && <Modalidades />}
             {tab === 'plano' && <PlanoForm />}
+            {tab === 'pedidos' && <PedidosAdmin />}
           </>
         )}
       </main>
@@ -548,5 +558,77 @@ function PlanoFields({ settings }: { settings: PlanSettings }) {
         {busy ? 'Salvando…' : 'Salvar configurações'}
       </button>
     </form>
+  )
+}
+
+// Pedidos sobre dados (LGPD art. 18): a resposta vai por e-mail; aqui só se marca o que foi
+// respondido. Os sem resposta vêm primeiro, do mais antigo ao mais novo, com o prazo de 15 dias.
+function PedidosAdmin() {
+  const data = useApi(fetchAllDataRequests)
+  const [error, setError] = useState('')
+
+  if (data.loading && !data.data) return <Loading />
+  if (!data.data) return <LoadError message={data.error ?? ''} onRetry={data.reload} />
+  const requests = data.data
+
+  async function markAnswered(id: string) {
+    setError('')
+    try {
+      const updated = await markDataRequestAnswered(id)
+      data.setData(requests.map((request) => (request.id === id ? { ...request, ...updated } : request)))
+    } catch (failure) {
+      setError(errorMessage(failure))
+    }
+  }
+
+  if (requests.length === 0) {
+    return (
+      <div className="page-section empty">
+        <p>Nenhum pedido sobre dados ainda.</p>
+      </div>
+    )
+  }
+
+  return (
+    <section className="page-section">
+      <div aria-live="polite">{error && <p className="form-error">{error}</p>}</div>
+      <ul className="review-list">
+        {requests.map((request) => (
+          <PedidoAdmin key={request.id} request={request} onAnswered={() => markAnswered(request.id)} />
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+function PedidoAdmin({ request, onAnswered }: { request: AdminDataRequest; onAnswered: () => void }) {
+  const deadline = responseDeadline(request.createdAt)
+  const late = !request.answeredAt && deadline < new Date()
+  const reply = `mailto:${request.email}?subject=${encodeURIComponent(`Seu pedido: ${subjectLabel(request.subject)}`)}`
+
+  return (
+    <li className="review">
+      <div className="review-head">
+        <strong>{subjectLabel(request.subject)}</strong>
+        {!request.answeredAt && <span className="badge">{late ? 'Atrasado' : 'Aberto'}</span>}
+        <span className="review-date">{formatRequestDate(request.createdAt)}</span>
+      </div>
+      <p className="contact-task">
+        {request.name}, <a href={reply}>{request.email}</a>
+      </p>
+      <p>{request.message}</p>
+      <p className="contact-task">
+        {request.answeredAt
+          ? `Respondido em ${formatRequestDate(request.answeredAt)}`
+          : `Responder até ${formatRequestDate(deadline)}`}
+      </p>
+      {!request.answeredAt && (
+        <div>
+          <button type="button" className="clear-filters" onClick={onAnswered}>
+            Marcar como respondido
+          </button>
+        </div>
+      )}
+    </li>
   )
 }

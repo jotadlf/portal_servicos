@@ -30,6 +30,7 @@ export function Conta({ account, onLogin, onLogout, onAccountChange }: ContaProp
               onAccountChange={onAccountChange}
             />
             {/* O portal não pode ficar sem administração */}
+            <PrivacyLinks />
             {!account.isAdmin && (
               <DeleteAccount isProvider={Boolean(account.professionalId)} onDeleted={onLogout} />
             )}
@@ -38,6 +39,7 @@ export function Conta({ account, onLogin, onLogout, onAccountChange }: ContaProp
           <div className="page-section">
             <h1 className="page-title">Seu perfil</h1>
             <LoginBar message="Entre para ver seu perfil." onLogin={onLogin} />
+            <PrivacyLinks />
           </div>
         )}
       </main>
@@ -47,8 +49,17 @@ export function Conta({ account, onLogin, onLogout, onAccountChange }: ContaProp
   )
 }
 
+function PrivacyLinks() {
+  return (
+    <nav className="privacy-links" aria-label="Privacidade">
+      <a href={routes.privacidade}>Política de privacidade</a>
+      <a href={routes.contato}>Pedidos sobre seus dados</a>
+    </nav>
+  )
+}
+
 // Apagar a conta pede confirmação aqui mesmo, sem janela por cima. Também é o caminho
-// para quem errou o CPF ou a data de nascimento, que não podem ser trocados: apagar e criar outra conta.
+// para quem quer recomeçar do zero. CPF e data de nascimento errados se corrigem pelo pedido de contato.
 function DeleteAccount({ isProvider, onDeleted }: { isProvider: boolean; onDeleted: () => void }) {
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -106,7 +117,8 @@ function DeleteAccount({ isProvider, onDeleted }: { isProvider: boolean; onDelet
       ) : (
         <>
           <p className="section-note">
-            Apaga sua conta e tudo o que está nela. Para corrigir o CPF ou a data de nascimento, apague a conta e crie outra.
+            Apaga sua conta e tudo o que está nela. Para corrigir o CPF ou a data de nascimento, faça um{' '}
+            <a href={routes.contato}>pedido de correção</a>.
           </p>
           <div>
             <button ref={startRef} type="button" className="clear-filters danger-link" onClick={open}>

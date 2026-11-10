@@ -1,7 +1,8 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { dbRow, loginAs, PNG_FILE } from '../test/supabase'
+import { sendDataRequest } from '../features/conta/pedidos'
+import { dbRow, loginAs, newAccount, PNG_FILE } from '../test/supabase'
 import { Admin } from './Admin'
 
 async function openTab(name?: string) {
@@ -198,5 +199,39 @@ describe('Admin: plano e pagamentos gravados no banco', () => {
     await userEvent.click(submit)
     expect(screen.getByText('Deixe pelo menos uma forma de pagamento ligada.')).toBeInTheDocument()
     expect((await dbRow('select preco_mensal, dias_teste from public.ajustes_plano'))).toEqual({ preco_mensal: 19.9, dias_teste: 15 })
+  })
+})
+
+describe('Admin: pedidos sobre dados', () => {
+  it('lista o pedido com quem pediu e o prazo, e marca como respondido no banco', async () => {
+    const account = await newAccount()
+    const sent = await sendDataRequest('exclusao', 'Quero apagar meus dados.')
+    await openTab('Pedidos')
+
+    const item = (await screen.findByText('Quero apagar meus dados.')).closest('li')!
+    const pedido = within(item)
+    expect(pedido.getByText('Apagar meus dados')).toBeInTheDocument()
+    expect(pedido.getByText('Aberto')).toBeInTheDocument()
+    expect(pedido.getByRole('link', { name: account.email })).toHaveAttribute('href', expect.stringMatching(`^mailto:${account.email}`))
+    expect(pedido.getByText(/^Responder até /)).toBeInTheDocument()
+
+    await userEvent.click(pedido.getByRole('button', { name: 'Marcar como respondido' }))
+    await waitFor(() => expect(pedido.getByText(/^Respondido em /)).toBeInTheDocument())
+    expect(pedido.queryByRole('button', { name: 'Marcar como respondido' })).not.toBeInTheDocument()
+    expect((await dbRow('select respondido_em from public.pedidos where id = $1', sent.id))!.respondido_em).not.toBeNull()
+  })
+
+  it('marca como atrasado o pedido com mais de 15 dias sem resposta', async () => {
+    await newAccount()
+    const sent = await sendDataRequest('acesso', 'Pedido antigo')
+    await dbRow("update public.pedidos set criado_em = now() - interval '16 days' where id = $1 returning id", sent.id)
+    await openTab('Pedidos')
+    const item = (await screen.findByText('Pedido antigo')).closest('li')!
+    expect(within(item).getByText('Atrasado')).toBeInTheDocument()
+  })
+
+  it('sem pedidos, avisa', async () => {
+    await openTab('Pedidos')
+    expect(await screen.findByText('Nenhum pedido sobre dados ainda.')).toBeInTheDocument()
   })
 })

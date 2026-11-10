@@ -5,9 +5,11 @@ import { routes, useHashRoute } from './hooks/useHashRoute'
 import { SESSION_EXPIRED } from './lib/api'
 import { Admin } from './pages/Admin'
 import { Conta } from './pages/Conta'
+import { Contato } from './pages/Contato'
 import { AlreadySignedIn, Entrar } from './pages/Entrar'
 import { Inicio } from './pages/Inicio'
 import { PerfilPrestador } from './pages/PerfilPrestador'
+import { Privacidade } from './pages/Privacidade'
 import { Publicar } from './pages/Publicar'
 import { Servicos } from './pages/Servicos'
 
@@ -81,6 +83,12 @@ function App() {
   }
   if (route.name === 'publicar') {
     return <Publicar account={signedIn} onLogin={login} />
+  }
+  if (route.name === 'privacidade') {
+    return <Privacidade account={signedIn} />
+  }
+  if (route.name === 'contato') {
+    return <Contato key={signedIn?.id} account={signedIn} onLogin={login} />
   }
   if (route.name === 'conta') {
     return <Conta account={signedIn} onLogin={login} onLogout={logout} onAccountChange={setAccount} />

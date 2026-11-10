@@ -2857,3 +2857,83 @@ html[data-nav='voltar']::view-transition-new(conteudo) {
   font-size: 0.9375rem;
   font-weight: 600;
 }
+
+/* Política de privacidade: texto corrido, listas e um cartão por dado guardado */
+.policy p,
+.policy ul {
+  margin: 0;
+  font-size: 0.9375rem;
+}
+
+.policy ul:not(.policy-list) {
+  display: grid;
+  gap: 4px;
+  padding-left: 20px;
+}
+
+.policy a,
+.privacy-links a,
+.section-note a {
+  color: var(--azulejo);
+  font-weight: 700;
+}
+
+.policy-list {
+  display: grid;
+  padding: 0;
+  list-style: none;
+  border-radius: 14px;
+  background: var(--superficie);
+  overflow: hidden;
+}
+
+.policy-list li {
+  display: grid;
+  gap: 4px;
+  padding: 10px 14px;
+}
+
+.policy-list li + li {
+  border-top: 1px solid var(--azulejo-tom);
+}
+
+.policy-list dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 10px;
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.policy-list dt {
+  color: var(--cimento);
+}
+
+.policy-list dd {
+  margin: 0;
+}
+
+/* Telas estreitas: rótulo em cima do texto, sem espremer */
+@media (max-width: 360px) {
+  .policy-list dl {
+    grid-template-columns: 1fr;
+  }
+
+  .policy-list dd + dt {
+    margin-top: 4px;
+  }
+}
+
+/* Links de privacidade no Perfil */
+.privacy-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  font-size: 0.875rem;
+}
+
+.privacy-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}

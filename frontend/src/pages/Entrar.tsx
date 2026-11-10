@@ -393,6 +393,10 @@ function CadastroForm({ onSignedIn }: Pick<EntrarProps, 'onSignedIn'>) {
         />
       )}
 
+      <p className="section-note">
+        Veja como usamos os seus dados na <a href={routes.privacidade}>política de privacidade</a>.
+      </p>
+
       <div aria-live="polite">{error && <p className="form-error">{error}</p>}</div>
 
       <button type="submit" className="primary" disabled={busy}>
