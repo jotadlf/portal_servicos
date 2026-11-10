@@ -28,8 +28,8 @@ describe('Contato: pedidos sobre dados', () => {
     const account = await newAccount()
     renderContato(account)
     expect(screen.getByText(`A resposta vai para ${account.email}.`)).toBeInTheDocument()
-    await userEvent.selectOptions(screen.getByLabelText('Assunto'), 'correcao')
-    await userEvent.type(screen.getByLabelText('Mensagem'), 'O CPF certo é outro.')
+    await userEvent.selectOptions(screen.getByLabelText(/^Assunto/), 'correcao')
+    await userEvent.type(screen.getByLabelText(/^Mensagem/), 'O CPF certo é outro.')
     await send()
 
     expect(await screen.findByText('Pedido enviado. Você recebe a resposta por e-mail.')).toBeInTheDocument()
@@ -40,21 +40,21 @@ describe('Contato: pedidos sobre dados', () => {
       { assunto: 'correcao', mensagem: 'O CPF certo é outro.' },
     ])
     // O formulário volta vazio
-    expect(screen.getByLabelText('Mensagem')).toHaveValue('')
+    expect(screen.getByLabelText(/^Mensagem/)).toHaveValue('')
   })
 
   it('sem assunto ou sem mensagem, avisa no campo e não grava', async () => {
     const account = await newAccount()
     renderContato(account)
     await send()
-    expect(screen.getByLabelText('Assunto')).toHaveAccessibleDescription('Escolha o assunto.')
-    expect(screen.getByLabelText('Assunto')).toHaveFocus()
+    expect(screen.getByLabelText(/^Assunto/)).toHaveAccessibleDescription('Escolha o assunto.')
+    expect(screen.getByLabelText(/^Assunto/)).toHaveFocus()
 
-    await userEvent.selectOptions(screen.getByLabelText('Assunto'), 'acesso')
-    await userEvent.type(screen.getByLabelText('Mensagem'), '   ')
+    await userEvent.selectOptions(screen.getByLabelText(/^Assunto/), 'acesso')
+    await userEvent.type(screen.getByLabelText(/^Mensagem/), '   ')
     await send()
-    expect(screen.getByLabelText('Mensagem')).toHaveAccessibleDescription('Escreva o seu pedido.')
-    expect(screen.getByLabelText('Mensagem')).toHaveFocus()
+    expect(screen.getByLabelText(/^Mensagem/)).toHaveAccessibleDescription('Escreva o seu pedido.')
+    expect(screen.getByLabelText(/^Mensagem/)).toHaveFocus()
     expect(await dbRow('select count(*) as n from public.pedidos')).toEqual({ n: 0 })
   })
 
@@ -72,8 +72,8 @@ describe('Contato: pedidos sobre dados', () => {
     const account = await newAccount()
     for (let i = 0; i < 5; i++) await sendDataRequest('duvida', `Pedido ${i}`)
     renderContato(account)
-    await userEvent.selectOptions(screen.getByLabelText('Assunto'), 'duvida')
-    await userEvent.type(screen.getByLabelText('Mensagem'), 'Mais um')
+    await userEvent.selectOptions(screen.getByLabelText(/^Assunto/), 'duvida')
+    await userEvent.type(screen.getByLabelText(/^Mensagem/), 'Mais um')
     await send()
     await waitFor(() => expect(screen.getByText(/5 pedidos esperando resposta/)).toBeInTheDocument())
   })
