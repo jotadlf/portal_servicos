@@ -12,6 +12,7 @@ import {
   sendPhoto,
   signIn,
   signUp,
+  ADULT_BIRTH_DATE,
   VALID_CPFS,
 } from './ajuda.ts'
 
@@ -203,8 +204,8 @@ describe('Perfil: virar prestador', () => {
 
   it('cria um único perfil de prestador, mesmo chamando duas vezes', async () => {
     const { client, account } = await signUp()
-    await call('virar_prestador', { cpf: VALID_CPFS[0] }, client)
-    const second = await call('virar_prestador', { cpf: VALID_CPFS[1] }, client)
+    await call('virar_prestador', { cpf: VALID_CPFS[0], birthDate: ADULT_BIRTH_DATE }, client)
+    const second = await call('virar_prestador', { cpf: VALID_CPFS[1], birthDate: ADULT_BIRTH_DATE }, client)
     expect(second.body.professionalId).toBeDefined()
     expect(await prestadores(account.id)).toBe(1)
     // A segunda chamada não troca o CPF gravado na primeira
@@ -213,7 +214,7 @@ describe('Perfil: virar prestador', () => {
 
   it('grava o CPF só com dígitos', async () => {
     const { client, account } = await signUp()
-    expect((await call('virar_prestador', { cpf: '529.982.247-25' }, client)).status).toBe(200)
+    expect((await call('virar_prestador', { cpf: '529.982.247-25', birthDate: ADULT_BIRTH_DATE }, client)).status).toBe(200)
     expect((await profile(account.id))!.cpf).toBe('52998224725')
   })
 
@@ -231,10 +232,44 @@ describe('Perfil: virar prestador', () => {
     expect((await profile(account.id))!.cpf).toBeNull()
   })
 
+  it('grava a data de nascimento junto com o CPF', async () => {
+    const { client, account } = await signUp()
+    expect((await call('virar_prestador', { cpf: VALID_CPFS[0], birthDate: '1985-12-01' }, client)).status).toBe(200)
+    expect((await row('select nascimento::text from public.contas where id = $1', account.id))!.nascimento).toBe(
+      '1985-12-01',
+    )
+  })
+
+  it.each([
+    [undefined, 'Informe sua data de nascimento.'],
+    ['1990-02-30', 'Informe uma data válida, como 25/03/1990.'],
+    [`${new Date().getFullYear() - 17}-01-01`, 'É preciso ter 18 anos ou mais para oferecer serviços.'],
+  ])('recusa data de nascimento %j sem criar o perfil nem gravar o CPF', async (birthDate, message) => {
+    const { client, account } = await signUp()
+    const response = await call('virar_prestador', { cpf: VALID_CPFS[0], birthDate }, client)
+    expect(response.status).toBe(400)
+    expect(response.body.fields).toEqual({ birthDate: message })
+    expect(await prestadores(account.id)).toBe(0)
+    expect(await row('select cpf, nascimento from public.contas where id = $1', account.id)).toEqual({
+      cpf: null,
+      nascimento: null,
+    })
+  })
+
+  it('a data de nascimento não muda depois de gravada', async () => {
+    const { account } = await signUp({ asProvider: true, cpf: VALID_CPFS[0] })
+    await expect(exec("update public.contas set nascimento = '1980-01-01' where id = $1", account.id)).rejects.toThrow(
+      /não pode ser alterada/,
+    )
+    await expect(exec('update public.contas set nascimento = null where id = $1', account.id)).rejects.toThrow(
+      /não pode ser alterada/,
+    )
+  })
+
   it('recusa CPF que já é de outra conta', async () => {
     await signUp({ asProvider: true, cpf: VALID_CPFS[0] })
     const { client, account } = await signUp()
-    const response = await call('virar_prestador', { cpf: VALID_CPFS[0] }, client)
+    const response = await call('virar_prestador', { cpf: VALID_CPFS[0], birthDate: ADULT_BIRTH_DATE }, client)
     expect(response.status).toBe(409)
     expect(response.body.fields).toEqual({ cpf: 'Já existe uma conta de prestador com esse CPF.' })
     expect(await prestadores(account.id)).toBe(0)

@@ -48,7 +48,7 @@ export function Conta({ account, onLogin, onLogout, onAccountChange }: ContaProp
 }
 
 // Apagar a conta pede confirmação aqui mesmo, sem janela por cima. Também é o caminho
-// para quem errou o CPF, que não pode ser trocado: apagar e criar outra conta.
+// para quem errou o CPF ou a data de nascimento, que não podem ser trocados: apagar e criar outra conta.
 function DeleteAccount({ isProvider, onDeleted }: { isProvider: boolean; onDeleted: () => void }) {
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -106,7 +106,7 @@ function DeleteAccount({ isProvider, onDeleted }: { isProvider: boolean; onDelet
       ) : (
         <>
           <p className="section-note">
-            Apaga sua conta e tudo o que está nela. Para corrigir o CPF, apague a conta e crie outra.
+            Apaga sua conta e tudo o que está nela. Para corrigir o CPF ou a data de nascimento, apague a conta e crie outra.
           </p>
           <div>
             <button ref={startRef} type="button" className="clear-filters danger-link" onClick={open}>

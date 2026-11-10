@@ -11,12 +11,16 @@ import {
   SAMPLE_IDS,
   signIn,
   signUp,
+  ADULT_BIRTH_DATE,
   uniqueEmail,
   VALID_CPFS,
 } from './ajuda.ts'
 
 beforeEach(resetDb)
 afterAll(closeDb)
+
+const thisYear = new Date().getFullYear()
+const provider = { asProvider: true, cpf: VALID_CPFS[4] }
 
 describe('Cadastro real: dados gravados no banco', () => {
   it('grava a conta de quem só contrata, campo a campo', async () => {
@@ -55,7 +59,10 @@ describe('Cadastro real: dados gravados no banco', () => {
 
   it('grava o prestador com CPF só em dígitos e cria o perfil em rascunho', async () => {
     const { account } = await signUp({ asProvider: true, cpf: '529.982.247-25' })
-    expect((await row('select cpf from public.contas where id = $1', account.id))!.cpf).toBe('52998224725')
+    expect(await row('select cpf, nascimento::text from public.contas where id = $1', account.id)).toEqual({
+      cpf: '52998224725',
+      nascimento: ADULT_BIRTH_DATE,
+    })
     expect(await row('select * from public.prestadores where conta_id = $1', account.id)).toMatchObject({
       nome: 'Ana Lima',
       status: 'rascunho',
@@ -117,6 +124,13 @@ describe('Cadastro real: dados gravados no banco', () => {
     ['prestador sem CPF', { asProvider: true }, 'cpf', 'Informe seu CPF.'],
     ['prestador com CPF inválido', { asProvider: true, cpf: '52998224700' }, 'cpf', 'Informe um CPF válido.'],
     ['prestador com CPF de dígitos iguais', { asProvider: true, cpf: '11111111111' }, 'cpf', 'Informe um CPF válido.'],
+    ['prestador sem data de nascimento', { ...provider, birthDate: undefined }, 'birthDate', 'Informe sua data de nascimento.'],
+    ['data fora do formato', { ...provider, birthDate: '25/03/1990' }, 'birthDate', /data válida/],
+    ['data que não existe', { ...provider, birthDate: '1990-02-31' }, 'birthDate', /data válida/],
+    ['data no futuro', { ...provider, birthDate: `${thisYear + 1}-01-01` }, 'birthDate', /data válida/],
+    ['data de mais de 120 anos', { ...provider, birthDate: `${thisYear - 121}-01-01` }, 'birthDate', /data válida/],
+    ['data que não é texto', { ...provider, birthDate: 19900325 }, 'birthDate', /formato inválido/],
+    ['menor de 18 anos', { ...provider, birthDate: `${thisYear - 17}-01-01` }, 'birthDate', /18 anos ou mais/],
   ])('recusa %s', async (_, data, field, message) => {
     const response = await cadastro({ name: 'Ana Lima', email: uniqueEmail(), password: 'segredo1', ...data })
     expect(response.status).toBe(400)
@@ -131,9 +145,23 @@ describe('Cadastro real: dados gravados no banco', () => {
     )
   })
 
-  it('ignora CPF enviado por quem não vai oferecer serviços', async () => {
-    const { account } = await signUp({ asProvider: false, cpf: VALID_CPFS[3] })
-    expect((await row('select cpf from public.contas where id = $1', account.id))!.cpf).toBeNull()
+  it('ignora CPF e data de nascimento enviados por quem não vai oferecer serviços', async () => {
+    const { account } = await signUp({ asProvider: false, cpf: VALID_CPFS[3], birthDate: ADULT_BIRTH_DATE })
+    expect(await row('select cpf, nascimento from public.contas where id = $1', account.id)).toEqual({
+      cpf: null,
+      nascimento: null,
+    })
+  })
+
+  it('quem chama o signUp direto sem a data de nascimento também é barrado', async () => {
+    const email = uniqueEmail()
+    const { error } = await newClient().auth.signUp({
+      email,
+      password: 'segredo1',
+      options: { data: { name: 'Ana Lima', asProvider: true, cpf: VALID_CPFS[3] } },
+    })
+    expect(error).not.toBeNull()
+    expect(await row('select 1 from auth.users where email = $1', email)).toBeUndefined()
   })
 
   it('recusa corpo que não é objeto', async () => {

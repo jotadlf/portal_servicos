@@ -25,7 +25,7 @@ export function uniqueEmail(prefix = 'tela') {
 
 const CPFS = ['52998224725', '11144477735', '12345678909', '39053344705', '71428793860']
 
-// Conta nova já com sessão aberta; prestador ganha CPF válido
+// Conta nova já com sessão aberta; prestador ganha CPF válido e data de nascimento de adulto
 export function newAccount({ asProvider = false, cpfIndex = 0 } = {}) {
   return createAccount({
     name: 'Ana Lima',
@@ -33,6 +33,7 @@ export function newAccount({ asProvider = false, cpfIndex = 0 } = {}) {
     password: 'segredo1',
     asProvider,
     cpf: asProvider ? CPFS[cpfIndex] : undefined,
+    birthDate: asProvider ? '1990-03-25' : undefined,
   })
 }
 

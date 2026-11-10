@@ -26,7 +26,7 @@ supabase/
 - **Login:** Supabase Auth (e-mail e senha). A sessão vale só na aba aberta (sessionStorage).
 - **Dados:** as tabelas ficam fechadas pela RLS. O app só chama funções RPC do banco
   (`supabase/migrations`), que conferem sessão, permissão e cada campo, com as mensagens que
-  aparecem nas telas. CPF e senha nunca saem do banco.
+  aparecem nas telas. CPF, data de nascimento e senha nunca saem do banco.
 - **Fotos:** bucket `fotos` do Storage. Cada conta grava só na própria pasta; a administração
   também em `modalidades/`. Só PNG, JPEG, WebP e GIF, até 5 MB.
 

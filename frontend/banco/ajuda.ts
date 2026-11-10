@@ -81,10 +81,23 @@ export function uniqueEmail(prefix = 'teste') {
 // CPFs válidos (dígitos verificadores certos) para os cadastros de prestador
 export const VALID_CPFS = ['52998224725', '11144477735', '12345678909', '39053344705', '71428793860']
 
-type SignUpData = { name: unknown; email: unknown; password: unknown; asProvider: unknown; cpf: unknown }
+// Data de nascimento de um adulto, para os cadastros de prestador
+export const ADULT_BIRTH_DATE = '1990-03-25'
+
+type SignUpData = {
+  name: unknown
+  email: unknown
+  password: unknown
+  asProvider: unknown
+  cpf: unknown
+  birthDate: unknown
+}
 
 // O cadastro como o app faz: o banco confere os dados e só então o Supabase Auth cria o login
-export async function cadastro(data: Partial<SignUpData>, client = newClient()) {
+// Prestador sem data de nascimento informada ganha a de um adulto; para testar a falta dela,
+// passe birthDate: undefined
+export async function cadastro(input: Partial<SignUpData>, client = newClient()) {
+  const data = input.asProvider && !('birthDate' in input) ? { ...input, birthDate: ADULT_BIRTH_DATE } : input
   const { password, ...rest } = data
   const passwordLength = typeof password === 'string' ? Buffer.byteLength(password) : undefined
   const checked = await call('validar_cadastro', { ...rest, passwordLength }, client)
@@ -92,7 +105,14 @@ export async function cadastro(data: Partial<SignUpData>, client = newClient()) 
   const { error } = await client.auth.signUp({
     email: String(data.email).trim().toLowerCase(),
     password: String(password),
-    options: { data: { name: data.name, asProvider: data.asProvider, cpf: data.asProvider ? data.cpf : undefined } },
+    options: {
+      data: {
+        name: data.name,
+        asProvider: data.asProvider,
+        cpf: data.asProvider ? data.cpf : undefined,
+        birthDate: data.asProvider ? data.birthDate : undefined,
+      },
+    },
   })
   if (error) return { status: error.status ?? 500, body: { error: error.message, code: error.code } }
   const me = await call('minha_conta', undefined, client)

@@ -29,6 +29,7 @@ import { useApi } from '../hooks/useApi'
 import { routes } from '../hooks/useHashRoute'
 import { ApiError, errorMessage } from '../lib/api'
 import { formatCpf, isValidCpf } from '../lib/cpf'
+import { birthDateError, formatBirthDate, toIsoDate } from '../lib/nascimento'
 import { formatDate, formatPrice, formatRating, normalize } from '../lib/format'
 
 const tabs = [
@@ -50,7 +51,9 @@ export function Servicos({ account, onLogin, onAccountChange }: ServicosProps) {
   const [error, setError] = useState('')
   const [cpf, setCpf] = useState('')
   const [cpfError, setCpfError] = useState('')
-  // A administração usa o portal sem plano e não precisa de CPF
+  const [birthDate, setBirthDate] = useState('')
+  const [birthDateProblem, setBirthDateProblem] = useState('')
+  // A administração usa o portal sem plano e não precisa de CPF nem data de nascimento
   const needsCpf = !account?.isAdmin
   const cpfDigits = cpf.replace(/\D/g, '')
 
@@ -60,26 +63,39 @@ export function Servicos({ account, onLogin, onAccountChange }: ServicosProps) {
     return isValidCpf(cpfDigits) ? '' : 'Informe um CPF válido.'
   }
 
+  function checkBirthDate() {
+    return needsCpf ? (birthDateError(birthDate) ?? '') : ''
+  }
+
   async function startOffering(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (busy) return
-    const problem = checkCpf()
-    setCpfError(problem)
-    if (problem) {
-      event.currentTarget.querySelector<HTMLInputElement>('input[name="cpf"]')?.focus()
+    const form = event.currentTarget
+    const focus = (name: string) => form.querySelector<HTMLInputElement>(`input[name="${name}"]`)?.focus()
+    const cpfProblem = checkCpf()
+    const dateProblem = checkBirthDate()
+    setCpfError(cpfProblem)
+    setBirthDateProblem(dateProblem)
+    if (cpfProblem || dateProblem) {
+      focus(cpfProblem ? 'cpf' : 'birthDate')
       return
     }
-    const form = event.currentTarget
     setBusy(true)
     setError('')
     try {
-      onAccountChange(await becomeProvider(needsCpf ? cpfDigits : undefined))
+      onAccountChange(
+        await becomeProvider(
+          needsCpf ? cpfDigits : undefined,
+          needsCpf ? (toIsoDate(birthDate) ?? undefined) : undefined,
+        ),
+      )
     } catch (failure) {
       // O banco diz se o CPF já é de outra conta
-      const fieldError = failure instanceof ApiError ? failure.fields.cpf : undefined
-      if (fieldError) {
-        setCpfError(fieldError)
-        form.querySelector<HTMLInputElement>('input[name="cpf"]')?.focus()
+      const fields = failure instanceof ApiError ? failure.fields : {}
+      if (fields.cpf || fields.birthDate) {
+        setCpfError(fields.cpf ?? '')
+        setBirthDateProblem(fields.birthDate ?? '')
+        focus(fields.cpf ? 'cpf' : 'birthDate')
       } else {
         setError(errorMessage(failure))
       }
@@ -124,6 +140,26 @@ export function Servicos({ account, onLogin, onAccountChange }: ServicosProps) {
                     onChange={(e) => {
                       setCpf(formatCpf(e.target.value))
                       setCpfError('')
+                    }}
+                  />
+                )}
+                {needsCpf && (
+                  <Field
+                    label="Data de nascimento"
+                    name="birthDate"
+                    required
+                    inputMode="numeric"
+                    autoComplete="bday"
+                    placeholder="DD/MM/AAAA"
+                    value={birthDate}
+                    help="É preciso ter 18 anos ou mais. Ela não aparece no seu perfil e não pode ser trocada depois."
+                    error={birthDateProblem || undefined}
+                    onBlur={() => {
+                      if (birthDate) setBirthDateProblem(checkBirthDate())
+                    }}
+                    onChange={(e) => {
+                      setBirthDate(formatBirthDate(e.target.value))
+                      setBirthDateProblem('')
                     }}
                   />
                 )}

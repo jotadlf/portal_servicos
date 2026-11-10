@@ -9,6 +9,7 @@ import { useApi } from '../hooks/useApi'
 import { routes } from '../hooks/useHashRoute'
 import { ApiError, errorMessage } from '../lib/api'
 import { formatCpf, isValidCpf } from '../lib/cpf'
+import { birthDateError, formatBirthDate, toIsoDate } from '../lib/nascimento'
 import { isValidEmail } from '../lib/email'
 import { firstName } from '../lib/format'
 import { isValidName, NAME_ERROR } from '../lib/nome'
@@ -209,6 +210,7 @@ function CadastroForm({ onSignedIn }: Pick<EntrarProps, 'onSignedIn'>) {
   const [passwordConfirm, setPasswordConfirm] = useState('')
   const [asProvider, setAsProvider] = useState(false)
   const [cpf, setCpf] = useState('')
+  const [birthDate, setBirthDate] = useState('')
   const [error, setError] = useState('')
   // Problemas que só o servidor sabe (e-mail ou CPF já usados), por campo
   const [serverFields, setServerFields] = useState<Errors>({})
@@ -236,6 +238,7 @@ function CadastroForm({ onSignedIn }: Pick<EntrarProps, 'onSignedIn'>) {
         : isValidCpf(cpfDigits)
           ? serverFields.cpf
           : 'Informe um CPF válido.',
+    birthDate: asProvider ? (birthDateError(birthDate) ?? serverFields.birthDate) : undefined,
   })
 
   // Mexer num campo apaga o aviso do servidor sobre ele
@@ -255,6 +258,7 @@ function CadastroForm({ onSignedIn }: Pick<EntrarProps, 'onSignedIn'>) {
         password,
         asProvider,
         cpf: asProvider ? cpfDigits : undefined,
+        birthDate: asProvider ? (toIsoDate(birthDate) ?? undefined) : undefined,
       })
       // Quem vai oferecer serviços já cai na página para cadastrar o primeiro
       onSignedIn(account, asProvider ? routes.servicos : undefined)
@@ -366,6 +370,25 @@ function CadastroForm({ onSignedIn }: Pick<EntrarProps, 'onSignedIn'>) {
           onChange={(e) => {
             setCpf(formatCpf(e.target.value))
             clearServer('cpf')
+          }}
+        />
+      )}
+
+      {asProvider && (
+        <Field
+          label="Data de nascimento"
+          name="birthDate"
+          required
+          inputMode="numeric"
+          autoComplete="bday"
+          placeholder="DD/MM/AAAA"
+          value={birthDate}
+          help="É preciso ter 18 anos ou mais. Ela não aparece no seu perfil."
+          error={fields.errorOf('birthDate')}
+          onBlur={() => fields.touch('birthDate')}
+          onChange={(e) => {
+            setBirthDate(formatBirthDate(e.target.value))
+            clearServer('birthDate')
           }}
         />
       )}

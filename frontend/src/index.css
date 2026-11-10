@@ -1018,7 +1018,7 @@ a.icon-button {
   gap: 10px;
 }
 
-/* "Quero oferecer serviços": CPF e botão, no mesmo ritmo da seção */
+/* "Quero oferecer serviços": CPF, data de nascimento e botão, no mesmo ritmo da seção */
 .become-provider {
   display: grid;
   gap: 10px;

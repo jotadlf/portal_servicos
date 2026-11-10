@@ -1,4 +1,5 @@
-// Contas: login no Supabase Auth, dados na conta (public.contas). O CPF fica só no banco.
+// Contas: login no Supabase Auth, dados na conta (public.contas). O CPF e a data de nascimento
+// ficam só no banco.
 import { ApiError, imageUrl, removeFolder, removeImage, rpc, uploadImage } from '../../lib/api'
 import { PHOTO } from '../../lib/imagem'
 import { getSupabaseClient } from '../../lib/supabase'
@@ -60,15 +61,17 @@ type NewAccount = {
   password: string
   asProvider: boolean
   cpf?: string
+  // AAAA-MM-DD
+  birthDate?: string
 }
 
 const passwordError = (message: string) => new ApiError(400, message, { password: message })
 
-export async function createAccount({ name, email, password, asProvider, cpf }: NewAccount) {
+export async function createAccount({ name, email, password, asProvider, cpf, birthDate }: NewAccount) {
   // O banco confere tudo antes de criar o login, para o erro sair no campo certo.
   // Da senha, só o tamanho em bytes (o limite do bcrypt é em bytes).
   const passwordLength = new TextEncoder().encode(password).length
-  await rpc('validar_cadastro', { name, email, asProvider, cpf, passwordLength })
+  await rpc('validar_cadastro', { name, email, asProvider, cpf, birthDate, passwordLength })
 
   let result
   try {
@@ -76,7 +79,14 @@ export async function createAccount({ name, email, password, asProvider, cpf }: 
       email: email.trim().toLowerCase(),
       password,
       // O perfil nasce no banco a partir destes dados (gatilho nova_conta), conferidos de novo lá
-      options: { data: { name, asProvider, cpf: asProvider ? cpf : undefined } },
+      options: {
+        data: {
+          name,
+          asProvider,
+          cpf: asProvider ? cpf : undefined,
+          birthDate: asProvider ? birthDate : undefined,
+        },
+      },
     })
   } catch {
     throw new ApiError(0, OFFLINE)
@@ -141,8 +151,8 @@ export async function uploadPhoto(file: File) {
   return toAccount(updated)
 }
 
-// Qualquer pessoa pode passar a oferecer serviços a qualquer momento, informando o CPF
-// (a administração não precisa). Depois de gravado, o CPF não muda.
-export async function becomeProvider(cpf?: string) {
-  return toAccount(await rpc<AccountData>('virar_prestador', { cpf }))
+// Qualquer pessoa pode passar a oferecer serviços a qualquer momento, informando o CPF e a
+// data de nascimento (a administração não precisa). Depois de gravados, não mudam.
+export async function becomeProvider(cpf?: string, birthDate?: string) {
+  return toAccount(await rpc<AccountData>('virar_prestador', { cpf, birthDate }))
 }

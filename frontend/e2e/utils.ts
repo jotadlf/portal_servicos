@@ -72,6 +72,7 @@ export async function signUp(
   if (cpf) {
     await page.getByRole('checkbox', { name: /Também quero oferecer serviços/ }).check()
     await page.getByLabel('CPF').fill(cpf)
+    await page.getByLabel('Data de nascimento').fill('25/03/1990')
     await page.getByRole('button', { name: 'Criar conta de prestador' }).click()
   } else {
     await page.getByRole('button', { name: 'Criar conta', exact: true }).click()

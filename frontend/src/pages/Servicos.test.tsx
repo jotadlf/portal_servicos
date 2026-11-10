@@ -33,20 +33,41 @@ describe('Servicos: quem ainda não oferece', () => {
   })
 
   const cpfField = () => screen.getByLabelText(/^CPF/)
+  const birthField = () => screen.getByLabelText(/^Data de nascimento/)
   const offer = () => userEvent.click(screen.getByRole('button', { name: 'Quero oferecer serviços' }))
 
-  it('vira prestador com CPF e o perfil é criado no banco', async () => {
+  it('vira prestador com CPF e data de nascimento, e o perfil é criado no banco', async () => {
     const account = await newAccount()
     const { onAccountChange } = renderServicos(account)
     await userEvent.type(cpfField(), '52998224725')
     expect(cpfField()).toHaveValue('529.982.247-25')
+    await userEvent.type(birthField(), '25031990')
+    expect(birthField()).toHaveValue('25/03/1990')
     await offer()
 
     await waitFor(() => expect(onAccountChange).toHaveBeenCalled())
     const updated = onAccountChange.mock.calls[0][0] as Account
     expect(updated.professionalId).toBeDefined()
     expect((await dbRow('select status from public.prestadores where conta_id = $1', account.id))?.status).toBe('rascunho')
-    expect((await dbRow('select cpf from public.contas where id = $1', account.id))?.cpf).toBe('52998224725')
+    expect(await dbRow('select cpf, nascimento::text from public.contas where id = $1', account.id)).toEqual({
+      cpf: '52998224725',
+      nascimento: '1990-03-25',
+    })
+  })
+
+  it('data de nascimento vazia ou de menor de 18 anos: avisa no campo e não cria o perfil', async () => {
+    const account = await newAccount()
+    const { onAccountChange } = renderServicos(account)
+    await userEvent.type(cpfField(), '52998224725')
+    await offer()
+    expect(birthField()).toHaveAccessibleDescription('Informe sua data de nascimento.')
+    expect(birthField()).toHaveFocus()
+
+    await userEvent.type(birthField(), `0101${new Date().getFullYear() - 10}`)
+    await offer()
+    expect(birthField()).toHaveAccessibleDescription('É preciso ter 18 anos ou mais para oferecer serviços.')
+    expect(onAccountChange).not.toHaveBeenCalled()
+    expect(await dbRow('select id from public.prestadores where conta_id = $1', account.id)).toBeUndefined()
   })
 
   it('sem CPF, ou com CPF inválido, avisa no campo e não cria o perfil', async () => {
@@ -68,6 +89,7 @@ describe('Servicos: quem ainda não oferece', () => {
     const account = await newAccount()
     const { onAccountChange } = renderServicos(account)
     await userEvent.type(cpfField(), '52998224725')
+    await userEvent.type(birthField(), '25031990')
     await offer()
     await waitFor(() => expect(cpfField()).toHaveAccessibleDescription('Já existe uma conta de prestador com esse CPF.'))
     expect(onAccountChange).not.toHaveBeenCalled()
@@ -78,6 +100,7 @@ describe('Servicos: quem ainda não oferece', () => {
     expect(screen.getByText(/Como administrador, você usa tudo sem plano/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Quero oferecer serviços' })).toBeInTheDocument()
     expect(screen.queryByLabelText(/^CPF/)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^Data de nascimento/)).not.toBeInTheDocument()
     // Dá tempo de a oferta carregar, se fosse aparecer
     await new Promise((resolve) => setTimeout(resolve, 100))
     expect(screen.queryByText(/dias grátis|por mês/)).not.toBeInTheDocument()

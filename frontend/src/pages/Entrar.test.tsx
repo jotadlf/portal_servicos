@@ -202,6 +202,7 @@ describe('Entrar: cadastro real', () => {
   }
   const provider = () => screen.getByRole('checkbox', { name: /Também quero oferecer serviços/ })
   const cpfField = () => screen.getByLabelText(/^CPF/)
+  const birthField = () => screen.getByLabelText(/^Data de nascimento/)
 
   it('grava a conta de consumidor no banco e abre a sessão', async () => {
     const onSignedIn = vi.fn()
@@ -230,12 +231,17 @@ describe('Entrar: cadastro real', () => {
     await userEvent.click(provider())
     await userEvent.type(cpfField(), '52998224725')
     expect(cpfField()).toHaveValue('529.982.247-25')
+    await userEvent.type(birthField(), '25031990')
+    expect(birthField()).toHaveValue('25/03/1990')
     await userEvent.click(screen.getByRole('button', { name: 'Criar conta de prestador' }))
 
     await waitFor(() => expect(onSignedIn).toHaveBeenCalled())
     const [account, next] = onSignedIn.mock.calls[0]
     expect(next).toBe('#/servicos')
-    expect((await dbRow('select cpf from public.contas where id = $1', account.id))?.cpf).toBe('52998224725')
+    expect(await dbRow('select cpf, nascimento::text from public.contas where id = $1', account.id)).toEqual({
+      cpf: '52998224725',
+      nascimento: '1990-03-25',
+    })
     expect((await dbRow('select status from public.prestadores where conta_id = $1', account.id))?.status).toBe('rascunho')
   })
 
@@ -275,8 +281,26 @@ describe('Entrar: cadastro real', () => {
     await fill('outra.prestadora@exemplo.com', 'segredo1')
     await userEvent.click(provider())
     await userEvent.type(cpfField(), '52998224725')
+    await userEvent.type(birthField(), '25031990')
     await userEvent.click(screen.getByRole('button', { name: 'Criar conta de prestador' }))
 
     await waitFor(() => expect(cpfField()).toHaveAccessibleDescription('Já existe uma conta de prestador com esse CPF.'))
+  })
+
+  it('pede a data de nascimento de quem vai oferecer serviços e recusa menor de 18 anos', async () => {
+    const onSignedIn = vi.fn()
+    render(<Entrar mode="cadastro" onSignedIn={onSignedIn} />)
+    expect(screen.queryByLabelText(/^Data de nascimento/)).not.toBeInTheDocument()
+    await fill('menor@exemplo.com', 'segredo1')
+    await userEvent.click(provider())
+    await userEvent.type(cpfField(), '52998224725')
+    await userEvent.click(screen.getByRole('button', { name: 'Criar conta de prestador' }))
+    expect(birthField()).toHaveAccessibleDescription('Informe sua data de nascimento.')
+    expect(birthField()).toHaveFocus()
+
+    await userEvent.type(birthField(), `0101${new Date().getFullYear() - 10}`)
+    await userEvent.click(screen.getByRole('button', { name: 'Criar conta de prestador' }))
+    expect(birthField()).toHaveAccessibleDescription('É preciso ter 18 anos ou mais para oferecer serviços.')
+    expect(onSignedIn).not.toHaveBeenCalled()
   })
 })
