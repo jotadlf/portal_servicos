@@ -218,7 +218,7 @@ describe('Entrar: cadastro real', () => {
     await waitFor(() => expect(onSignedIn).toHaveBeenCalled())
     const [account, next] = onSignedIn.mock.calls[0]
     expect(next).toBeUndefined()
-    expect(await dbRow('select email, nome, cpf, telefone from public.contas where id = $1', account.id)).toEqual({
+    expect(await dbRow('select email, nome, interno.decifrar_cpf(cpf_cifrado) as cpf, telefone from public.contas where id = $1', account.id)).toEqual({
       email: 'ana.lima@exemplo.com',
       nome: 'Ana Lima',
       cpf: null,
@@ -242,7 +242,7 @@ describe('Entrar: cadastro real', () => {
     await waitFor(() => expect(onSignedIn).toHaveBeenCalled())
     const [account, next] = onSignedIn.mock.calls[0]
     expect(next).toBe('#/servicos')
-    expect(await dbRow('select cpf, nascimento::text from public.contas where id = $1', account.id)).toEqual({
+    expect(await dbRow('select interno.decifrar_cpf(cpf_cifrado) as cpf, nascimento::text from public.contas where id = $1', account.id)).toEqual({
       cpf: '52998224725',
       nascimento: '1990-03-25',
     })

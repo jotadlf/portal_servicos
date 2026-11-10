@@ -33,7 +33,8 @@ const fullProfile = {
   },
 }
 
-const profile = (id: string) => row('select * from public.contas where id = $1', id)
+// O CPF fica cifrado; aqui vem decifrado pelo próprio banco, para conferir
+const profile = (id: string) => row('select *, interno.decifrar_cpf(cpf_cifrado) as cpf from public.contas where id = $1', id)
 const uploadedPhotos = async () =>
   (await row(`select count(*) as n from storage.objects where bucket_id = 'fotos'`))!.n as number
 
@@ -109,7 +110,7 @@ describe('Perfil: cada campo gravado no banco', () => {
       { name: 'Ana Lima', email: 'outro@exemplo.com', password: 'x', cpf: VALID_CPFS[2], isAdmin: true, admin: true },
       client,
     )
-    const saved = await row('select email, cpf, admin from public.contas where id = $1', account.id)
+    const saved = await row('select email, interno.decifrar_cpf(cpf_cifrado) as cpf, admin from public.contas where id = $1', account.id)
     expect(saved).toMatchObject({ cpf: null, admin: false })
     expect(saved!.email).not.toBe('outro@exemplo.com')
   })
@@ -250,7 +251,7 @@ describe('Perfil: virar prestador', () => {
     expect(response.status).toBe(400)
     expect(response.body.fields).toEqual({ birthDate: message })
     expect(await prestadores(account.id)).toBe(0)
-    expect(await row('select cpf, nascimento from public.contas where id = $1', account.id)).toEqual({
+    expect(await row('select interno.decifrar_cpf(cpf_cifrado) as cpf, nascimento from public.contas where id = $1', account.id)).toEqual({
       cpf: null,
       nascimento: null,
     })
@@ -287,12 +288,15 @@ describe('Perfil: virar prestador', () => {
 describe('Perfil: CPF fixo', () => {
   it('depois de gravado, o CPF não muda nem direto no banco', async () => {
     const { account } = await signUp({ asProvider: true, cpf: VALID_CPFS[0] })
-    await expect(exec('update public.contas set cpf = $1 where id = $2', VALID_CPFS[1], account.id)).rejects.toThrow(
+    const change = (set: string, ...args: unknown[]) =>
+      exec(`update public.contas set ${set} where id = $1`, account.id, ...args)
+    await expect(
+      change('cpf_hash = interno.cpf_hash($2), cpf_cifrado = interno.cifrar_cpf($2)', VALID_CPFS[1]),
+    ).rejects.toThrow('O CPF não pode ser alterado.')
+    await expect(change('cpf_cifrado = interno.cifrar_cpf($2)', VALID_CPFS[1])).rejects.toThrow(
       'O CPF não pode ser alterado.',
     )
-    await expect(exec('update public.contas set cpf = null where id = $1', account.id)).rejects.toThrow(
-      'O CPF não pode ser alterado.',
-    )
+    await expect(change('cpf_hash = null, cpf_cifrado = null')).rejects.toThrow('O CPF não pode ser alterado.')
     expect((await profile(account.id))!.cpf).toBe(VALID_CPFS[0])
   })
 

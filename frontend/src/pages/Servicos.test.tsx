@@ -49,7 +49,7 @@ describe('Servicos: quem ainda não oferece', () => {
     const updated = onAccountChange.mock.calls[0][0] as Account
     expect(updated.professionalId).toBeDefined()
     expect((await dbRow('select status from public.prestadores where conta_id = $1', account.id))?.status).toBe('rascunho')
-    expect(await dbRow('select cpf, nascimento::text from public.contas where id = $1', account.id)).toEqual({
+    expect(await dbRow('select interno.decifrar_cpf(cpf_cifrado) as cpf, nascimento::text from public.contas where id = $1', account.id)).toEqual({
       cpf: '52998224725',
       nascimento: '1990-03-25',
     })

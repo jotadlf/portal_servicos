@@ -28,7 +28,7 @@ describe('Cadastro real: dados gravados no banco', () => {
   it('grava a conta de quem só contrata, campo a campo', async () => {
     const { account } = await signUp({ name: '  Ana   Lima ', email: '  Ana.Lima@Exemplo.COM ', password: 'segredo1' })
 
-    const saved = await row('select * from public.contas where id = $1', account.id)
+    const saved = await row('select *, interno.decifrar_cpf(cpf_cifrado) as cpf from public.contas where id = $1', account.id)
     expect(saved).toMatchObject({
       email: 'ana.lima@exemplo.com',
       nome: 'Ana Lima',
@@ -61,7 +61,7 @@ describe('Cadastro real: dados gravados no banco', () => {
 
   it('grava o prestador com CPF só em dígitos e cria o perfil em rascunho', async () => {
     const { account } = await signUp({ asProvider: true, cpf: '529.982.247-25' })
-    expect(await row('select cpf, nascimento::text from public.contas where id = $1', account.id)).toEqual({
+    expect(await row('select interno.decifrar_cpf(cpf_cifrado) as cpf, nascimento::text from public.contas where id = $1', account.id)).toEqual({
       cpf: '52998224725',
       nascimento: ADULT_BIRTH_DATE,
     })
@@ -154,7 +154,7 @@ describe('Cadastro real: dados gravados no banco', () => {
 
   it('ignora CPF e data de nascimento enviados por quem não vai oferecer serviços', async () => {
     const { account } = await signUp({ asProvider: false, cpf: VALID_CPFS[3], birthDate: ADULT_BIRTH_DATE })
-    expect(await row('select cpf, nascimento from public.contas where id = $1', account.id)).toEqual({
+    expect(await row('select interno.decifrar_cpf(cpf_cifrado) as cpf, nascimento from public.contas where id = $1', account.id)).toEqual({
       cpf: null,
       nascimento: null,
     })
@@ -163,7 +163,7 @@ describe('Cadastro real: dados gravados no banco', () => {
   it('guarda as versões dos termos e da política aceitas, e quando', async () => {
     const before = Date.now()
     const { account } = await signUp()
-    const saved = await row('select * from public.contas where id = $1', account.id)
+    const saved = await row('select *, interno.decifrar_cpf(cpf_cifrado) as cpf from public.contas where id = $1', account.id)
     expect(saved).toMatchObject({ termos_versao: TERMS_VERSION, privacidade_versao: PRIVACY_VERSION })
     expect(new Date(saved!.termos_aceitos_em).getTime()).toBeGreaterThanOrEqual(before - 60_000)
     expect(new Date(saved!.privacidade_aceita_em).getTime()).toBeGreaterThanOrEqual(before - 60_000)
