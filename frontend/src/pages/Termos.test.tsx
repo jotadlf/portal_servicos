@@ -10,17 +10,21 @@ describe('Termos', () => {
     expect(screen.getByText(`Atualizados em ${TERMS_UPDATED_AT}.`)).toBeInTheDocument()
     for (const heading of [
       'Quem somos',
-      'O que o portal faz e o que não faz',
-      'Plano, período grátis e cancelamento',
-      'O que não é permitido',
-      'Denúncias e remoção de conteúdo',
-      'Lei e foro',
+      'O que o portal faz',
+      'Plano e cancelamento',
+      'Não é permitido',
+      'Disputas',
     ]) {
       expect(screen.getByRole('heading', { name: heading })).toBeInTheDocument()
     }
     expect(screen.getByRole('region', { name: 'Quem somos' })).toHaveTextContent(CONTROLLER.name)
-    expect(screen.getAllByRole('link', { name: CONTROLLER.email })[0]).toHaveAttribute('href', `mailto:${CONTROLLER.email}`)
-    expect(screen.getByRole('region', { name: 'Plano, período grátis e cancelamento' })).toHaveTextContent('7 dias')
+    expect(screen.getByRole('link', { name: CONTROLLER.email })).toHaveAttribute('href', `mailto:${CONTROLLER.email}`)
+    expect(screen.getByRole('region', { name: 'Plano e cancelamento' })).toHaveTextContent('7 dias')
     expect(screen.getByRole('link', { name: 'política de privacidade' })).toHaveAttribute('href', '#/privacidade')
+  })
+
+  it('não cita leis nem artigos', () => {
+    render(<Termos />)
+    expect(document.body.textContent).not.toMatch(/\bart\.|\bLei\b|LGPD|Código/)
   })
 })

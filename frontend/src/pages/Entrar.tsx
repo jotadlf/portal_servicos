@@ -212,6 +212,7 @@ function CadastroForm({ onSignedIn }: Pick<EntrarProps, 'onSignedIn'>) {
   const [cpf, setCpf] = useState('')
   const [birthDate, setBirthDate] = useState('')
   const [acceptedTerms, setAcceptedTerms] = useState(false)
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false)
   const [error, setError] = useState('')
   // Problemas que só o servidor sabe (e-mail ou CPF já usados), por campo
   const [serverFields, setServerFields] = useState<Errors>({})
@@ -241,6 +242,7 @@ function CadastroForm({ onSignedIn }: Pick<EntrarProps, 'onSignedIn'>) {
           : 'Informe um CPF válido.',
     birthDate: asProvider ? (birthDateError(birthDate) ?? serverFields.birthDate) : undefined,
     terms: acceptedTerms ? serverFields.terms : 'Para criar a conta, aceite os termos de uso.',
+    privacy: acceptedPrivacy ? serverFields.privacy : 'Para criar a conta, aceite a política de privacidade.',
   })
 
   // Mexer num campo apaga o aviso do servidor sobre ele
@@ -262,6 +264,7 @@ function CadastroForm({ onSignedIn }: Pick<EntrarProps, 'onSignedIn'>) {
         cpf: asProvider ? cpfDigits : undefined,
         birthDate: asProvider ? (toIsoDate(birthDate) ?? undefined) : undefined,
         acceptedTerms,
+        acceptedPrivacy,
       })
       // Quem vai oferecer serviços já cai na página para cadastrar o primeiro
       onSignedIn(account, asProvider ? routes.servicos : undefined)
@@ -398,38 +401,28 @@ function CadastroForm({ onSignedIn }: Pick<EntrarProps, 'onSignedIn'>) {
 
       {/* Os links abrem em outra aba, para não perder o que já foi digitado */}
       <div className="terms-field">
-        <label className="toggle">
-          <input
-            type="checkbox"
-            name="terms"
-            checked={acceptedTerms}
-            aria-invalid={fields.errorOf('terms') ? true : undefined}
-            aria-describedby={fields.errorOf('terms') ? 'terms-nota' : undefined}
-            onChange={(e) => {
-              setAcceptedTerms(e.target.checked)
-              clearServer('terms')
-            }}
-          />
-          <span>
-            Li e aceito os{' '}
-            <a href={routes.termos} target="_blank" rel="noopener">
-              termos de uso
-            </a>
-            .
-          </span>
-        </label>
-        {fields.errorOf('terms') && (
-          <small id="terms-nota" className="form-error">
-            {fields.errorOf('terms')}
-          </small>
-        )}
-        <p className="section-note">
-          Veja como usamos os seus dados na{' '}
-          <a href={routes.privacidade} target="_blank" rel="noopener">
-            política de privacidade
-          </a>
-          .
-        </p>
+        <AcceptBox
+          name="terms"
+          href={routes.termos}
+          link="termos de uso"
+          checked={acceptedTerms}
+          error={fields.errorOf('terms')}
+          onChange={(checked) => {
+            setAcceptedTerms(checked)
+            clearServer('terms')
+          }}
+        />
+        <AcceptBox
+          name="privacy"
+          href={routes.privacidade}
+          link="política de privacidade"
+          checked={acceptedPrivacy}
+          error={fields.errorOf('privacy')}
+          onChange={(checked) => {
+            setAcceptedPrivacy(checked)
+            clearServer('privacy')
+          }}
+        />
       </div>
 
       <div aria-live="polite">{error && <p className="form-error">{error}</p>}</div>
@@ -438,6 +431,46 @@ function CadastroForm({ onSignedIn }: Pick<EntrarProps, 'onSignedIn'>) {
         {busy ? 'Criando conta…' : asProvider ? 'Criar conta de prestador' : 'Criar conta'}
       </button>
     </form>
+  )
+}
+
+type AcceptBoxProps = {
+  name: string
+  href: string
+  link: string
+  checked: boolean
+  error?: string
+  onChange: (checked: boolean) => void
+}
+
+// "Li e aceito os termos de uso", desmarcada no começo, com o link para o texto
+function AcceptBox({ name, href, link, checked, error, onChange }: AcceptBoxProps) {
+  const article = link.startsWith('termos') ? 'os' : 'a'
+  return (
+    <div className="accept-box">
+      <label className="toggle">
+        <input
+          type="checkbox"
+          name={name}
+          checked={checked}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${name}-nota` : undefined}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+        <span>
+          Li e aceito {article}{' '}
+          <a href={href} target="_blank" rel="noopener">
+            {link}
+          </a>
+          .
+        </span>
+      </label>
+      {error && (
+        <small id={`${name}-nota`} className="form-error">
+          {error}
+        </small>
+      )}
+    </div>
   )
 }
 

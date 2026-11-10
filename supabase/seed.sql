@@ -39,7 +39,7 @@ begin
   )
   select '00000000-0000-0000-0000-000000000000', u.id::uuid, 'authenticated', 'authenticated', u.email,
     extensions.crypt('teste123', extensions.gen_salt('bf')), now(),
-    '{"provider": "email", "providers": ["email"]}', jsonb_build_object('name', u.name, 'termsVersion', interno.versao_termos()), now(), now(),
+    '{"provider": "email", "providers": ["email"]}', jsonb_build_object('name', u.name, 'termsVersion', interno.versao_termos(), 'privacyVersion', interno.versao_privacidade()), now(), now(),
     '', '', '', '', '', ''
   from (values
     ('00000000-0000-4000-8000-000000000001', 'carlos@exemplo.com', 'Carlos Henrique'),

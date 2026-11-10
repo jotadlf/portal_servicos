@@ -1,28 +1,38 @@
--- Termos de uso: o cadastro só cria a conta de quem aceitou a versão atual, e a conta guarda
--- quando e qual versão foi aceita. Contas criadas antes ficam sem o aceite.
--- Ao mudar o texto dos termos, mude a versão aqui e em src/lib/controlador.ts.
+-- Termos de uso e política de privacidade: o cadastro só cria a conta de quem aceitou as versões
+-- atuais dos dois, e a conta guarda quando e qual versão de cada um foi aceita. Contas criadas
+-- antes ficam sem o aceite. Ao mudar um dos textos, mude a versão aqui e em src/lib/controlador.ts.
 
 alter table public.contas
   add column termos_versao text,
-  add column termos_aceitos_em timestamptz;
+  add column termos_aceitos_em timestamptz,
+  add column privacidade_versao text,
+  add column privacidade_aceita_em timestamptz;
 
 create function interno.versao_termos() returns text
 language sql immutable set search_path = ''
 as $$ select '2026-11-10' $$;
 
--- O cadastro manda a versão que a pessoa leu e aceitou; precisa ser a atual
-create function interno.aceite_termos(p jsonb) returns text
+create function interno.versao_privacidade() returns text
+language sql immutable set search_path = ''
+as $$ select '2026-11-10' $$;
+
+-- O cadastro manda as versões que a pessoa leu e aceitou; precisam ser as atuais
+create function interno.conferir_aceites(p jsonb) returns void
 language plpgsql stable set search_path = ''
 as $$
+declare
+  dados jsonb := interno.objeto(p);
 begin
-  if interno.objeto(p) ->> 'termsVersion' is distinct from interno.versao_termos() then
+  if dados ->> 'termsVersion' is distinct from interno.versao_termos() then
     perform interno.erro_campo('terms', 'Para criar a conta, aceite os termos de uso.');
   end if;
-  return interno.versao_termos();
+  if dados ->> 'privacyVersion' is distinct from interno.versao_privacidade() then
+    perform interno.erro_campo('privacy', 'Para criar a conta, aceite a política de privacidade.');
+  end if;
 end
 $$;
 
--- Igual à versão anterior, com o aceite conferido por último (os outros campos aparecem antes)
+-- Igual à versão anterior, com os aceites conferidos por último (os outros campos aparecem antes)
 create or replace function public.validar_cadastro(p jsonb default '{}') returns void
 language plpgsql security definer set search_path = ''
 as $$
@@ -54,24 +64,29 @@ begin
   if cadastro.cpf is not null and exists (select 1 from public.contas a where a.cpf = cadastro.cpf) then
     perform interno.erro_campo('cpf', 'Já existe uma conta de prestador com esse CPF.', 409);
   end if;
-  perform interno.aceite_termos(dados);
+  perform interno.conferir_aceites(dados);
 end
 $$;
 
--- Quem chama o signUp direto também precisa ter aceitado os termos
+-- Quem chama o signUp direto também precisa ter aceitado os dois
 create or replace function interno.nova_conta() returns trigger
 language plpgsql security definer set search_path = ''
 as $$
 declare
   dados jsonb := coalesce(new.raw_user_meta_data, '{}'::jsonb);
   cadastro record;
-  versao text;
   conta public.contas;
 begin
   select * into cadastro from interno.dados_cadastro(dados);
-  versao := interno.aceite_termos(dados);
-  insert into public.contas (id, email, nome, cpf, nascimento, termos_versao, termos_aceitos_em)
-  values (new.id, lower(new.email), cadastro.nome, cadastro.cpf, cadastro.nascimento, versao, now())
+  perform interno.conferir_aceites(dados);
+  insert into public.contas (
+    id, email, nome, cpf, nascimento,
+    termos_versao, termos_aceitos_em, privacidade_versao, privacidade_aceita_em
+  )
+  values (
+    new.id, lower(new.email), cadastro.nome, cadastro.cpf, cadastro.nascimento,
+    interno.versao_termos(), now(), interno.versao_privacidade(), now()
+  )
   returning * into conta;
   if cadastro.cpf is not null then
     perform interno.criar_prestador(conta);
@@ -81,4 +96,5 @@ end
 $$;
 
 revoke execute on function interno.versao_termos() from public, anon, authenticated;
-revoke execute on function interno.aceite_termos(jsonb) from public, anon, authenticated;
+revoke execute on function interno.versao_privacidade() from public, anon, authenticated;
+revoke execute on function interno.conferir_aceites(jsonb) from public, anon, authenticated;

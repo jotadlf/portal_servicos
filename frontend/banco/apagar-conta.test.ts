@@ -11,6 +11,7 @@ import {
   row,
   SAMPLE_IDS,
   signUp,
+  PRIVACY_VERSION,
   TERMS_VERSION,
   VALID_CPFS,
 } from './ajuda.ts'
@@ -57,6 +58,7 @@ describe('Apagar conta', () => {
       cpf: VALID_CPFS[0],
       birthDate: ADULT_BIRTH_DATE,
       termsVersion: TERMS_VERSION,
+      privacyVersion: PRIVACY_VERSION,
     })
     expect(response.status).toBe(200)
   })

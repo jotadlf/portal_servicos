@@ -84,8 +84,9 @@ export const VALID_CPFS = ['52998224725', '11144477735', '12345678909', '3905334
 // Data de nascimento de um adulto, para os cadastros de prestador
 export const ADULT_BIRTH_DATE = '1990-03-25'
 
-// Versão atual dos termos de uso (interno.versao_termos())
+// Versões atuais dos termos e da política (interno.versao_termos() e interno.versao_privacidade())
 export const TERMS_VERSION = '2026-11-10'
+export const PRIVACY_VERSION = '2026-11-10'
 
 type SignUpData = {
   name: unknown
@@ -95,13 +96,18 @@ type SignUpData = {
   cpf: unknown
   birthDate: unknown
   termsVersion: unknown
+  privacyVersion: unknown
 }
 
 // O cadastro como o app faz: o banco confere os dados e só então o Supabase Auth cria o login
 // Prestador sem data de nascimento informada ganha a de um adulto, e todo cadastro aceita os
-// termos atuais; para testar a falta de um deles, passe birthDate: undefined ou termsVersion: undefined
+// termos e a política atuais; para testar a falta de um deles, passe o campo como undefined
 export async function cadastro(input: Partial<SignUpData>, client = newClient()) {
-  const withTerms = 'termsVersion' in input ? input : { ...input, termsVersion: TERMS_VERSION }
+  const withTerms = {
+    termsVersion: TERMS_VERSION,
+    privacyVersion: PRIVACY_VERSION,
+    ...input,
+  }
   const data =
     withTerms.asProvider && !('birthDate' in withTerms) ? { ...withTerms, birthDate: ADULT_BIRTH_DATE } : withTerms
   const { password, ...rest } = data
@@ -118,6 +124,7 @@ export async function cadastro(input: Partial<SignUpData>, client = newClient())
         cpf: data.asProvider ? data.cpf : undefined,
         birthDate: data.asProvider ? data.birthDate : undefined,
         termsVersion: data.termsVersion,
+        privacyVersion: data.privacyVersion,
       },
     },
   })

@@ -6,10 +6,10 @@ export const CONTROLLER = {
   email: 'bruna@gmail.com',
 }
 
-// Versão da política: mude a data sempre que o texto mudar
+// Versões da política e dos termos, aceitas no cadastro. Ao mudar um texto, mude a versão e a data
+// dele aqui e interno.versao_privacidade() ou interno.versao_termos() numa migração nova: o banco
+// só aceita cadastro com as versões atuais.
+export const PRIVACY_VERSION = '2026-11-10'
 export const PRIVACY_UPDATED_AT = '10/11/2026'
-
-// Versão dos termos de uso. Ao mudar o texto, mude as duas e interno.versao_termos() numa
-// migração nova: o banco só aceita cadastro com a versão atual.
 export const TERMS_VERSION = '2026-11-10'
 export const TERMS_UPDATED_AT = '10/11/2026'

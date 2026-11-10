@@ -2,7 +2,7 @@
 // ficam só no banco.
 import { ApiError, imageUrl, removeFolder, removeImage, rpc, uploadImage } from '../../lib/api'
 import { PHOTO } from '../../lib/imagem'
-import { TERMS_VERSION } from '../../lib/controlador'
+import { PRIVACY_VERSION, TERMS_VERSION } from '../../lib/controlador'
 import { getSupabaseClient } from '../../lib/supabase'
 
 export type Address = {
@@ -64,19 +64,22 @@ type NewAccount = {
   cpf?: string
   // AAAA-MM-DD
   birthDate?: string
-  // Marcou "Li e aceito os termos de uso"
+  // Marcou "Li e aceito os termos de uso" e "Li e aceito a política de privacidade"
   acceptedTerms: boolean
+  acceptedPrivacy: boolean
 }
 
 const passwordError = (message: string) => new ApiError(400, message, { password: message })
 
-export async function createAccount({ name, email, password, asProvider, cpf, birthDate, acceptedTerms }: NewAccount) {
-  // Vai a versão que a pessoa aceitou; o banco recusa sem ela
-  const termsVersion = acceptedTerms ? TERMS_VERSION : undefined
+export async function createAccount(account: NewAccount) {
+  const { name, email, password, asProvider, cpf, birthDate } = account
+  // Vão as versões que a pessoa aceitou; o banco recusa sem elas
+  const termsVersion = account.acceptedTerms ? TERMS_VERSION : undefined
+  const privacyVersion = account.acceptedPrivacy ? PRIVACY_VERSION : undefined
   // O banco confere tudo antes de criar o login, para o erro sair no campo certo.
   // Da senha, só o tamanho em bytes (o limite do bcrypt é em bytes).
   const passwordLength = new TextEncoder().encode(password).length
-  await rpc('validar_cadastro', { name, email, asProvider, cpf, birthDate, termsVersion, passwordLength })
+  await rpc('validar_cadastro', { name, email, asProvider, cpf, birthDate, termsVersion, privacyVersion, passwordLength })
 
   let result
   try {
@@ -91,6 +94,7 @@ export async function createAccount({ name, email, password, asProvider, cpf, bi
           cpf: asProvider ? cpf : undefined,
           birthDate: asProvider ? birthDate : undefined,
           termsVersion,
+          privacyVersion,
         },
       },
     })

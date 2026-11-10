@@ -2858,7 +2858,7 @@ html[data-nav='voltar']::view-transition-new(conteudo) {
   font-weight: 600;
 }
 
-/* Política de privacidade: texto corrido, listas e um cartão por dado guardado */
+/* Política e termos: texto corrido, listas e um cartão por dado guardado */
 .policy p,
 .policy ul {
   margin: 0;
@@ -2897,33 +2897,6 @@ html[data-nav='voltar']::view-transition-new(conteudo) {
   border-top: 1px solid var(--azulejo-tom);
 }
 
-.policy-list dl {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 2px 10px;
-  margin: 0;
-  font-size: 0.875rem;
-}
-
-.policy-list dt {
-  color: var(--cimento);
-}
-
-.policy-list dd {
-  margin: 0;
-}
-
-/* Telas estreitas: rótulo em cima do texto, sem espremer */
-@media (max-width: 360px) {
-  .policy-list dl {
-    grid-template-columns: 1fr;
-  }
-
-  .policy-list dd + dt {
-    margin-top: 4px;
-  }
-}
-
 /* Links de privacidade no Perfil */
 .privacy-links {
   display: flex;
@@ -2938,10 +2911,15 @@ html[data-nav='voltar']::view-transition-new(conteudo) {
   min-height: 44px;
 }
 
-/* Cadastro: aceite dos termos e link da política */
+/* Cadastro: aceite dos termos e da política */
 .terms-field {
   display: grid;
-  gap: 6px;
+  gap: 2px;
+}
+
+.accept-box {
+  display: grid;
+  gap: 2px;
 }
 
 .terms-field .toggle {

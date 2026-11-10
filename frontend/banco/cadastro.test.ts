@@ -12,6 +12,7 @@ import {
   signIn,
   signUp,
   ADULT_BIRTH_DATE,
+  PRIVACY_VERSION,
   TERMS_VERSION,
   uniqueEmail,
   VALID_CPFS,
@@ -135,6 +136,8 @@ describe('Cadastro real: dados gravados no banco', () => {
     ['sem aceitar os termos', { termsVersion: undefined }, 'terms', 'Para criar a conta, aceite os termos de uso.'],
     ['aceite de uma versão antiga dos termos', { termsVersion: '2020-01-01' }, 'terms', /aceite os termos/],
     ['aceite que não é texto', { termsVersion: true }, 'terms', /aceite os termos/],
+    ['sem aceitar a política', { privacyVersion: undefined }, 'privacy', 'Para criar a conta, aceite a política de privacidade.'],
+    ['aceite de uma versão antiga da política', { privacyVersion: '2020-01-01' }, 'privacy', /aceite a política/],
   ])('recusa %s', async (_, data, field, message) => {
     const response = await cadastro({ name: 'Ana Lima', email: uniqueEmail(), password: 'segredo1', ...data })
     expect(response.status).toBe(400)
@@ -157,21 +160,22 @@ describe('Cadastro real: dados gravados no banco', () => {
     })
   })
 
-  it('guarda a versão dos termos aceita e quando', async () => {
+  it('guarda as versões dos termos e da política aceitas, e quando', async () => {
     const before = Date.now()
     const { account } = await signUp()
-    const saved = await row('select termos_versao, termos_aceitos_em from public.contas where id = $1', account.id)
-    expect(saved!.termos_versao).toBe(TERMS_VERSION)
+    const saved = await row('select * from public.contas where id = $1', account.id)
+    expect(saved).toMatchObject({ termos_versao: TERMS_VERSION, privacidade_versao: PRIVACY_VERSION })
     expect(new Date(saved!.termos_aceitos_em).getTime()).toBeGreaterThanOrEqual(before - 60_000)
+    expect(new Date(saved!.privacidade_aceita_em).getTime()).toBeGreaterThanOrEqual(before - 60_000)
   })
 
-  it('quem chama o signUp direto sem aceitar os termos também é barrado', async () => {
+  it.each([
+    ['sem aceitar nada', { name: 'Ana Lima' }],
+    ['só com os termos', { name: 'Ana Lima', termsVersion: TERMS_VERSION }],
+    ['só com a política', { name: 'Ana Lima', privacyVersion: PRIVACY_VERSION }],
+  ])('quem chama o signUp direto %s também é barrado', async (_, data) => {
     const email = uniqueEmail()
-    const { error } = await newClient().auth.signUp({
-      email,
-      password: 'segredo1',
-      options: { data: { name: 'Ana Lima' } },
-    })
+    const { error } = await newClient().auth.signUp({ email, password: 'segredo1', options: { data } })
     expect(error).not.toBeNull()
     expect(await row('select 1 from auth.users where email = $1', email)).toBeUndefined()
   })
@@ -208,7 +212,7 @@ describe('Cadastro real: dados gravados no banco', () => {
     await client.auth.signUp({
       email: uniqueEmail(),
       password: 'segredo1',
-      options: { data: { name: 'Ana Lima', isAdmin: true, admin: true, termsVersion: TERMS_VERSION } },
+      options: { data: { name: 'Ana Lima', isAdmin: true, admin: true, termsVersion: TERMS_VERSION, privacyVersion: PRIVACY_VERSION } },
     })
     const me = await call('minha_conta', undefined, client)
     expect(me.body.isAdmin).toBeUndefined()
